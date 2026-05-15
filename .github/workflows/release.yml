@@ -58,11 +58,13 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
-      - name: Compute tag
+      - name: Compute tag + lowercase owner (GHCR requires lowercase)
         id: tag
         run: |
           REF="${{ inputs.tag || github.ref_name }}"
           echo "version=${REF#v}" >> "$GITHUB_OUTPUT"
+          OWNER_LC="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "owner_lc=${OWNER_LC}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -81,8 +83,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/homelab-ai:${{ steps.tag.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/homelab-ai:latest
+            ghcr.io/${{ steps.tag.outputs.owner_lc }}/homelab-ai:${{ steps.tag.outputs.version }}
+            ghcr.io/${{ steps.tag.outputs.owner_lc }}/homelab-ai:latest
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ steps.tag.outputs.version }}
