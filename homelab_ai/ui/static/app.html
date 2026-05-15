@@ -98,8 +98,63 @@
 
 <script>
 const API = '';
+const API_KEY_STORAGE = 'homelab_ai_api_key';
 function $(id){ return document.getElementById(id); }
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Wrap fetch so every API call carries the stored API key (if any).
+// 401 responses surface the login modal so the user can paste a key.
+const _origFetch = window.fetch.bind(window);
+window.fetch = async function(input, init={}) {
+  const key = localStorage.getItem(API_KEY_STORAGE);
+  if (key) {
+    init.headers = init.headers || {};
+    if (init.headers instanceof Headers) {
+      init.headers.set('X-Api-Key', key);
+    } else {
+      init.headers['X-Api-Key'] = key;
+    }
+  }
+  init.credentials = init.credentials || 'same-origin';
+  const r = await _origFetch(input, init);
+  if (r.status === 401) {
+    showApiKeyModal();
+  }
+  return r;
+};
+
+function showApiKeyModal() {
+  if ($('apiKeyModal')) return;
+  const modal = document.createElement('div');
+  modal.id = 'apiKeyModal';
+  modal.style = 'position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:1rem;';
+  modal.innerHTML = `
+    <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 max-w-sm w-full">
+      <h2 class="text-base font-semibold mb-2">Authentication required</h2>
+      <p class="text-xs text-slate-400 mb-3">Paste the API key from your config.yaml — it's saved locally for next time.</p>
+      <input id="apiKeyInput" type="password" placeholder="hk_..."
+             class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-3"
+             autofocus>
+      <div class="flex gap-2">
+        <button onclick="document.getElementById('apiKeyModal').remove()"
+                class="flex-1 py-2 rounded-lg bg-slate-700 text-sm">Cancel</button>
+        <button id="saveApiKeyBtn"
+                class="flex-1 py-2 rounded-lg bg-indigo-500 text-white text-sm font-medium">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  $('saveApiKeyBtn').onclick = () => {
+    const v = $('apiKeyInput').value.trim();
+    if (v) {
+      localStorage.setItem(API_KEY_STORAGE, v);
+      $('apiKeyModal').remove();
+      loadHome();
+    }
+  };
+  $('apiKeyInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') $('saveApiKeyBtn').click();
+  });
+}
 
 function switchTab(tab){
   const tabs = ['home','chat','settings'];

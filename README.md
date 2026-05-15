@@ -32,17 +32,46 @@ homelab-ai is the glue: a config-driven plugin system where every service you ru
 ```bash
 git clone https://github.com/JeremiahM37/homelab-ai
 cd homelab-ai
-cp config.example.yaml config.yaml      # edit to your URLs/API keys
-docker compose up -d
+pip install -e .
+homelab-ai --config config.yaml init     # detects Ollama, scans for services,
+                                          # generates an API key, writes config.yaml
+homelab-ai --config config.yaml run
 ```
 
-Open `http://<your-host>:9105/app` for the mobile PWA, or `http://<your-host>:9105/docs` for the OpenAPI Swagger UI.
+Open `http://<your-host>:9105/app` for the mobile PWA (paste the API key from `config.yaml` when prompted), or `http://<your-host>:9105/docs` for the OpenAPI Swagger UI.
 
-Native Python (no Docker):
+Docker:
 
 ```bash
-pip install -e .
-homelab-ai run --config config.yaml
+docker compose up -d        # uses docker-compose.example.yml + your config.yaml
+```
+
+### LLM backend — bring your own
+
+Works with anything that speaks the Ollama or OpenAI API:
+
+```yaml
+llm:
+  backend: openai_compat            # or "ollama", or "auto"
+  url: https://api.openai.com/v1    # or http://localhost:11434 for Ollama
+  api_key: ${OPENAI_API_KEY}
+  small_model: gpt-4o-mini
+  smart_model: gpt-4o
+  embed_model: text-embedding-3-small
+```
+
+Tested with Ollama, vLLM, LiteLLM proxy, OpenAI, Anthropic-via-LiteLLM, OpenRouter, Groq, LM Studio.
+
+### Auth
+
+Set `auth.enabled: true` in `config.yaml` (the wizard does this for you) and every request needs an `X-Api-Key` header or a session cookie. Optional username/password users go in `auth.users` with bcrypt hashes (or PBKDF2 if `bcrypt` isn't installed).
+
+```yaml
+auth:
+  enabled: true
+  api_key: hk_<generated-32-char-token>
+  users:
+    admin: "$2b$12$..."
 ```
 
 ---

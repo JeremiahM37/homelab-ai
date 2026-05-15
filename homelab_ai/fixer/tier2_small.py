@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 
 import aiohttp
 
-from homelab_ai.llm.ollama import OllamaClient
+from homelab_ai.llm import get_client, get_model
 
 if TYPE_CHECKING:
     from homelab_ai.agent.modules import Finding
@@ -79,7 +79,8 @@ async def attempt_fix(
     services: dict[str, Service],
     http: aiohttp.ClientSession,
 ) -> dict:
-    client = OllamaClient(cfg.ollama.url, http, cfg.ollama.keep_alive)
+    client = get_client(cfg, http)
+    small_model = get_model(cfg, "small")
 
     async def _exec_tool(name: str, args: dict) -> dict:
         if name == "list_services":
@@ -107,7 +108,7 @@ async def attempt_fix(
     for _ in range(3):  # at most 3 LLM rounds
         try:
             resp = await client.chat(
-                cfg.ollama.small_model,
+                small_model,
                 messages,
                 tools=TOOL_SCHEMAS,
                 stream=False,

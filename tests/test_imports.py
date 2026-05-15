@@ -52,13 +52,25 @@ MODULES = [
     "homelab_ai.services.overseerr",
     "homelab_ai.services.command",
     # mcp + llm
+    "homelab_ai.llm",
+    "homelab_ai.llm.base",
     "homelab_ai.llm.ollama",
+    "homelab_ai.llm.openai_compat",
     "homelab_ai.mcp.tool_router",
     "homelab_ai.mcp.server",
+    # auth + discovery + wizard
+    "homelab_ai.auth",
+    "homelab_ai.auth.passwords",
+    "homelab_ai.auth.sessions",
+    "homelab_ai.auth.middleware",
+    "homelab_ai.discovery",
+    "homelab_ai.discovery.probe",
+    "homelab_ai.init_wizard",
     # api
     "homelab_ai.api.main",
     "homelab_ai.api.routers.agent",
     "homelab_ai.api.routers.ai",
+    "homelab_ai.api.routers.auth",
     "homelab_ai.api.routers.services",
     "homelab_ai.api.routers.settings",
     # notifications + verify

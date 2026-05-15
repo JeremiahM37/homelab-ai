@@ -26,6 +26,9 @@ async def _lifespan(app: FastAPI):
     app.state.http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
     app.state.services = load_services(cfg, app.state.http)
     app.state.tool_router = None  # populated in background if embeddings work
+    # Session store for the optional PWA login.
+    from homelab_ai.auth.sessions import SessionStore
+    app.state.sessions = SessionStore(cfg.auth.session_secret)
     asyncio.create_task(_warm_tool_router(app))
     if cfg.agent.enabled:
         app.state.agent_task = asyncio.create_task(run_forever(cfg))
@@ -44,15 +47,15 @@ async def _warm_tool_router(app: FastAPI):
     server isn't blocked by Ollama embedding the whole tool catalog.
     """
     from homelab_ai.api.routers.ai import _collect_tools
-    from homelab_ai.llm.ollama import OllamaClient
+    from homelab_ai.llm import get_client, get_model
     from homelab_ai.mcp.tool_router import SemanticToolRouter
 
     cfg = app.state.cfg
     tools = _collect_tools(app.state.services)
-    embed_model = (cfg._raw.get("ollama") or {}).get("embed_model", "nomic-embed-text")
+    embed_model = get_model(cfg, "embed")
     if not tools:
         return
-    client = OllamaClient(cfg.ollama.url, app.state.http, cfg.ollama.keep_alive)
+    client = get_client(cfg, app.state.http)
 
     async def _embed(text: str):
         try:
@@ -85,10 +88,19 @@ def create_app(cfg: Config) -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Auth middleware — no-op if auth.enabled is false.
+    from homelab_ai.auth.middleware import AuthMiddleware
+    from homelab_ai.auth.sessions import SessionStore
+    # We need a SessionStore *now* (before lifespan runs) so middleware
+    # can reference it. Lifespan replaces it in app.state.
+    early_sessions = SessionStore(cfg.auth.session_secret)
+    app.add_middleware(AuthMiddleware, auth_cfg=cfg.auth, sessions=early_sessions)
+
     # Routers
-    from homelab_ai.api.routers import agent, ai, services, settings
+    from homelab_ai.api.routers import agent, ai, auth, services, settings
     app.include_router(agent.router)
     app.include_router(ai.router)
+    app.include_router(auth.router)
     app.include_router(services.router)
     app.include_router(settings.router)
 

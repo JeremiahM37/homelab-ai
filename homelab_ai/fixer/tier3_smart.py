@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 
 import aiohttp
 
-from homelab_ai.llm.ollama import OllamaClient
+from homelab_ai.llm import get_client, get_model
 
 from .audit import AuditLog
 from .backup import FileBackup
@@ -150,7 +150,8 @@ class SmartFixer:
             max_files=f.max_files_changed_per_fix,
             max_lines=f.max_lines_changed_per_fix,
         )
-        client = OllamaClient(self.cfg.ollama.url, self.http, self.cfg.ollama.keep_alive)
+        client = get_client(self.cfg, self.http)
+        smart_model = get_model(self.cfg, "smart")
         user_msg = (
             f"Failure: {finding.message}\n"
             f"Module: {finding.module}, Target: {finding.target}, Severity: {finding.severity.name}\n"
@@ -165,7 +166,7 @@ class SmartFixer:
         for _ in range(5):
             try:
                 resp = await client.chat(
-                    self.cfg.ollama.smart_model,
+                    smart_model,
                     messages,
                     tools=[READ_FILE_TOOL],
                     stream=False,

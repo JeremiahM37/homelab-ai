@@ -21,7 +21,8 @@ import aiohttp
 from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from homelab_ai.llm.ollama import OllamaClient, tool_to_openai_function
+from homelab_ai.llm import get_client, get_model
+from homelab_ai.llm.ollama import tool_to_openai_function
 
 logger = logging.getLogger("homelab_ai.api.ai")
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -77,16 +78,16 @@ async def list_tools(request: Request):
 @router.post("/embed")
 async def embed(request: Request, body: dict = Body(...)) -> dict:
     text = body.get("text") or ""
-    model = body.get("model") or "nomic-embed-text"
+    cfg = request.app.state.cfg
+    model = body.get("model") or get_model(cfg, "embed")
     if not text:
         raise HTTPException(400, "text required")
-    cfg = request.app.state.cfg
-    client = OllamaClient(cfg.ollama.url, request.app.state.http, cfg.ollama.keep_alive)
+    client = get_client(cfg, request.app.state.http)
     try:
         emb = await client.embed(model, text)
         return {"model": model, "dim": len(emb), "embedding": emb}
     except aiohttp.ClientError as e:
-        raise HTTPException(502, f"ollama unreachable: {e}")
+        raise HTTPException(502, f"LLM backend unreachable: {e}")
 
 
 async def _run_tool(tool: dict, arguments: dict) -> Any:
@@ -144,7 +145,8 @@ async def _agent_loop(
     selected = await _select_tools(request, prompt, all_tools)
     tool_index = {t["name"]: t for t in selected}
 
-    client = OllamaClient(cfg.ollama.url, request.app.state.http, cfg.ollama.keep_alive)
+    client = get_client(cfg, request.app.state.http)
+    small_model = get_model(cfg, "small")
     fn_tools = [
         tool_to_openai_function(t["name"], t["description"], t["schema"])
         for t in selected
@@ -164,7 +166,7 @@ async def _agent_loop(
         # adds little value when we have to wait for tool results anyway.
         try:
             resp = await client.chat(
-                cfg.ollama.small_model,
+                small_model,
                 messages,
                 tools=fn_tools,
                 stream=False,
@@ -179,7 +181,7 @@ async def _agent_loop(
             answer = (msg.get("content") or "").strip()
             return {
                 "answer": answer or "(empty response)",
-                "model": cfg.ollama.small_model,
+                "model": small_model,
                 "tool_calls": tool_calls_made,
                 "iterations": iteration + 1,
             }
@@ -218,7 +220,7 @@ async def _agent_loop(
     # Iteration cap reached — force a final answer with no tools.
     try:
         final = await client.chat(
-            cfg.ollama.small_model,
+            small_model,
             messages + [{"role": "user", "content": "Summarize the result above in 1-3 sentences."}],
             tools=None,
             stream=False,
@@ -229,7 +231,7 @@ async def _agent_loop(
         answer = f"LLM unreachable during summary: {e}"
     return {
         "answer": answer,
-        "model": cfg.ollama.small_model,
+        "model": small_model,
         "tool_calls": tool_calls_made,
         "iterations": MAX_TOOL_ITERATIONS,
         "capped": True,
