@@ -74,6 +74,33 @@ auth:
     admin: "$2b$12$..."
 ```
 
+### Modular features
+
+Everything beyond the agent/AI core is opt-in. Toggle features in `config.yaml`:
+
+```yaml
+features:
+  metrics: {enabled: true}              # /metrics endpoint
+  ntfy: {enabled: true, url: "..."}     # push notifications
+  scheduler: {enabled: true, schedules: [...]}
+  webhooks: {enabled: true, receivers: {...}}
+  multi_llm: {enabled: true, ...}       # cheap local + paid for hard problems
+  history: {enabled: true}              # /api/history/{scans,ai,fixes}
+  rag: {enabled: true}                  # ChromaDB-backed document search
+  mcp_http: {enabled: true}             # /mcp JSON-RPC for HTTP MCP clients
+```
+
+A feature that's off has zero cost — its module is never imported, its routes are never registered, its deps don't need to be installed. Heavy deps live behind pip extras:
+
+```bash
+pip install homelab-ai[metrics]    # adds prometheus-client
+pip install homelab-ai[rag]        # adds chromadb
+pip install homelab-ai[scheduler]  # adds croniter
+pip install homelab-ai[all]        # everything
+```
+
+See [docs/features.md](docs/features.md) for the full menu.
+
 ---
 
 ## What it looks like

@@ -33,11 +33,20 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.0"]
+metrics = ["prometheus-client>=0.20"]
+rag = ["chromadb>=0.5"]
+scheduler = ["croniter>=2.0"]
+auth = ["bcrypt>=4.0"]
+all = ["homelab-ai[mcp,metrics,rag,scheduler,auth]"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.4",
     "mypy>=1.9",
+    # Dev install pulls in the extras so the full test suite covers them.
+    "prometheus-client>=0.20",
+    "croniter>=2.0",
+    "bcrypt>=4.0",
 ]
 
 [project.scripts]

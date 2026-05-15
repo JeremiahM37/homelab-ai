@@ -73,11 +73,31 @@ class Notifier:
         if self.config.generic_webhook:
             sent = await self._send_generic(finding, action_taken) or sent
 
+        # Optional backends (email, ntfy, gotify) — only run if features
+        # were attached AND the specific backend is enabled. Zero cost
+        # otherwise (no imports).
+        features = getattr(self, "_features", None)
+        if features:
+            from .backends import send_email, send_gotify, send_ntfy
+            if features.email.enabled:
+                sent = await send_email(finding, action_taken, features.email) or sent
+            if features.ntfy.enabled:
+                sent = await send_ntfy(finding, action_taken, features.ntfy, self.http) or sent
+            if features.gotify.enabled:
+                sent = await send_gotify(finding, action_taken, features.gotify, self.http) or sent
+
         if sent:
             self._sent[fp] = now
             self._recent.append(now)
             self._save_state()
         return sent
+
+    def attach_features(self, features) -> None:
+        """Late-bind optional feature backends. Off-by-default — call this
+        from app startup only when `features.{email,ntfy,gotify}.enabled` is
+        true. Otherwise the notifier stays Discord/generic-webhook-only.
+        """
+        self._features = features
 
     async def publish_resolved(self, finding: Finding) -> bool:
         """Optional resolved notice — short, lower-priority, doesn't count against rate cap."""
