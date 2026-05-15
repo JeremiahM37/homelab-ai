@@ -160,6 +160,9 @@ def create_app(cfg: Config) -> FastAPI:
     if features.mcp_http.enabled:
         from homelab_ai.api.routers import mcp_http
         app.include_router(mcp_http.router)
+    if features.config_editor.enabled:
+        from homelab_ai.api.routers import config_editor
+        app.include_router(config_editor.router)
     if features.metrics.enabled:
         from homelab_ai.observability import metrics as metrics_mod
         metrics_mod.install(app, path=features.metrics.path)

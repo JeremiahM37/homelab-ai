@@ -111,6 +111,31 @@ class MCPHttpFeature:
 
 
 @dataclass
+class AutomationsFeature:
+    """HA-style rules: when a Finding matches a trigger, call a tool."""
+    enabled: bool = False
+    rules: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class AnomaliesFeature:
+    """Statistical outlier detection for tracked service metrics."""
+    enabled: bool = False
+    db_path: str = "./data/anomalies.db"
+    stddev_threshold: float = 3.0
+    min_samples: int = 12
+    history_days: int = 7
+
+
+@dataclass
+class ConfigEditorFeature:
+    """Web UI for editing config.yaml via the PWA."""
+    enabled: bool = False
+    config_path: str = "config.yaml"
+    require_restart_warning: bool = True
+
+
+@dataclass
 class Features:
     metrics: MetricsFeature = field(default_factory=MetricsFeature)
     email: EmailFeature = field(default_factory=EmailFeature)
@@ -122,13 +147,17 @@ class Features:
     history: HistoryFeature = field(default_factory=HistoryFeature)
     rag: RAGFeature = field(default_factory=RAGFeature)
     mcp_http: MCPHttpFeature = field(default_factory=MCPHttpFeature)
+    automations: AutomationsFeature = field(default_factory=AutomationsFeature)
+    anomalies: AnomaliesFeature = field(default_factory=AnomaliesFeature)
+    config_editor: ConfigEditorFeature = field(default_factory=ConfigEditorFeature)
 
     @classmethod
     def from_config(cls, cfg: "Config") -> "Features":
         raw = cfg._raw.get("features") or {}
         f = cls()
         for attr in ("metrics", "email", "ntfy", "gotify", "scheduler",
-                     "webhooks", "multi_llm", "history", "rag", "mcp_http"):
+                     "webhooks", "multi_llm", "history", "rag", "mcp_http",
+                     "automations", "anomalies", "config_editor"):
             block = raw.get(attr) or {}
             if isinstance(block, bool):
                 # shorthand: `features: {metrics: true}`
@@ -148,6 +177,7 @@ class Features:
             for attr in (
                 "metrics", "email", "ntfy", "gotify", "scheduler",
                 "webhooks", "multi_llm", "history", "rag", "mcp_http",
+                "automations", "anomalies", "config_editor",
             )
         }
 

@@ -1,0 +1,17 @@
+services:
+  homelab-ai:
+    image: ghcr.io/jeremiahm37/homelab-ai:latest
+    container_name: homelab-ai
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    command: ["run", "--config", "/data/config.yaml"]
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    depends_on:
+      - homelab-ai

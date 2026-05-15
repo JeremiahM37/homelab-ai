@@ -1,0 +1,39 @@
+# Tailscale-side-car deployment of homelab-ai.
+#
+# tailscale and homelab-ai share a network namespace via `network_mode:
+# service:tailscale`, so anything binding on homelab-ai's localhost is
+# reachable through the tailscale node's tailnet address.
+#
+# Tailnet-only — nothing is exposed on the host.
+
+services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    hostname: ${TS_HOSTNAME}
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_HOSTNAME: ${TS_HOSTNAME}
+      TS_USERSPACE: "false"
+      TS_EXTRA_ARGS: --advertise-tags=${TS_TAGS}
+    volumes:
+      - ts_state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+
+  homelab-ai:
+    image: ghcr.io/jeremiahm37/homelab-ai:latest
+    depends_on:
+      - tailscale
+    network_mode: service:tailscale
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    command: ["run", "--config", "/data/config.yaml"]
+
+volumes:
+  ts_state: {}

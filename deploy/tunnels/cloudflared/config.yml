@@ -1,0 +1,8 @@
+# Cloudflare Tunnel ingress — edit the hostname for your domain.
+tunnel: TUNNEL_UUID                    # replace with your tunnel UUID
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: homelab-ai.yourdomain.com
+    service: http://homelab-ai:9105
+  - service: http_status:404           # everything else → 404

@@ -66,11 +66,16 @@ MODULES = [
     "homelab_ai.discovery",
     "homelab_ai.discovery.probe",
     "homelab_ai.init_wizard",
+    "homelab_ai.automations",
+    "homelab_ai.automations.engine",
+    "homelab_ai.agent.modules.anomaly_detector",
+    "homelab_ai.services.nut",
     # api
     "homelab_ai.api.main",
     "homelab_ai.api.routers.agent",
     "homelab_ai.api.routers.ai",
     "homelab_ai.api.routers.auth",
+    "homelab_ai.api.routers.config_editor",
     "homelab_ai.api.routers.services",
     "homelab_ai.api.routers.settings",
     # notifications + verify

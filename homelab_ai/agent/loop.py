@@ -91,12 +91,22 @@ async def _do_scan(
     http: aiohttp.ClientSession,
     cfg: Config,
 ) -> dict:
+    from homelab_ai.features import Features
     from homelab_ai.fixer import tier1_rules, tier2_small
     from homelab_ai.fixer.tier3_smart import SmartFixer
     from homelab_ai.notifications import Notifier
 
     started = time.time()
     notifier = Notifier(cfg.agent.notify, http, state_path=Path("./data/notifier.json"))
+
+    # Optional automation engine — off-by-default. When a Finding matches
+    # a configured rule's trigger, the engine fires the rule's action
+    # *in addition to* the normal fixer pipeline.
+    features = Features.from_config(cfg)
+    automations = None
+    if features.automations.enabled and features.automations.rules:
+        from homelab_ai.automations import AutomationEngine
+        automations = AutomationEngine(features.automations.rules, services)
     findings: list[Finding] = []
     for m in modules:
         try:
@@ -126,6 +136,18 @@ async def _do_scan(
         fp = row["fingerprint"]
         if memory.should_skip(fp, cooldown_seconds=300):
             continue
+
+        # Automations run on every finding (including INFO/WARNING) — that's
+        # the use case ("when disk_forecast warns, run cleanup"). They are
+        # decoupled from the fixer pipeline.
+        if automations:
+            try:
+                fired = await automations.on_finding(f)
+                for action in fired:
+                    logger.info("automation %s → %s", action["rule"], action["result"])
+            except Exception as e:
+                logger.exception("automation engine raised: %s", e)
+
         if f.severity < Severity.ERROR:
             continue
 
