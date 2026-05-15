@@ -2,6 +2,9 @@
 
 > Self-hosted AI orchestrator for your homelab — monitors your services, self-heals when they break, and exposes everything you run as MCP tools any LLM can drive.
 
+[![CI](https://github.com/JeremiahM37/homelab-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/JeremiahM37/homelab-ai/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/homelab-ai)](https://pypi.org/project/homelab-ai/)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io%2FJeremiahM37%2Fhomelab--ai-blue)](https://github.com/JeremiahM37/homelab-ai/pkgs/container/homelab-ai)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-yes-green.svg)](https://github.com/awesome-selfhosted/awesome-selfhosted)
@@ -29,22 +32,36 @@ homelab-ai is the glue: a config-driven plugin system where every service you ru
 
 ## Quick start
 
+**Try it with no setup:**
+
 ```bash
-git clone https://github.com/JeremiahM37/homelab-ai
-cd homelab-ai
-pip install -e .
-homelab-ai --config config.yaml init     # detects Ollama, scans for services,
-                                          # generates an API key, writes config.yaml
+pip install homelab-ai
+homelab-ai demo
+```
+
+Open `http://localhost:9105/app` — a dashboard, AI chat, and a few mock services so you can try every feature without configuring anything.
+
+**Real install:**
+
+```bash
+pip install homelab-ai                       # or: docker pull ghcr.io/jeremiahm37/homelab-ai:latest
+homelab-ai --config config.yaml init         # detects Ollama, scans for services, writes config.yaml
 homelab-ai --config config.yaml run
 ```
 
-Open `http://<your-host>:9105/app` for the mobile PWA (paste the API key from `config.yaml` when prompted), or `http://<your-host>:9105/docs` for the OpenAPI Swagger UI.
+Open `http://<your-host>:9105/app` for the mobile PWA (paste the API key from `config.yaml` when prompted), or `http://<your-host>:9105/docs` for Swagger.
 
-Docker:
+**Docker:**
 
 ```bash
-docker compose up -d        # uses docker-compose.example.yml + your config.yaml
+docker run -d --name homelab-ai \
+  -p 9105:9105 \
+  -v ./data:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  ghcr.io/jeremiahm37/homelab-ai:latest run --config /data/config.yaml
 ```
+
+Or use the [example compose](docker-compose.example.yml).
 
 ### LLM backend — bring your own
 

@@ -23,6 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("mcp-server", help="Run the MCP stdio server (for Claude Desktop, Cursor, etc.)")
     p_init = sub.add_parser("init", help="Generate a config.yaml interactively")
     p_init.add_argument("--yes", action="store_true", help="Non-interactive (use defaults)")
+    sub.add_parser("demo", help="Boot with fake services for a no-setup tour")
     sub.add_parser("version", help="Print version")
 
     args = parser.parse_args(argv)
@@ -68,6 +69,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "init":
         from homelab_ai.init_wizard import run_init
         return run_init(args.config, yes=args.yes)
+
+    if args.cmd == "demo":
+        from homelab_ai.demo import run_demo
+        return run_demo()
 
     return 2
 

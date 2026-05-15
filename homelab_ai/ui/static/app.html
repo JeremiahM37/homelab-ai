@@ -19,6 +19,22 @@
   .shimmer { background: linear-gradient(90deg, rgba(30,41,59,0.4) 0%, rgba(51,65,85,0.55) 50%, rgba(30,41,59,0.4) 100%); background-size: 200% 100%; animation: shim 1.4s ease-in-out infinite; }
   @keyframes shim { 0% {background-position: 200% 0;} 100% {background-position: -200% 0;} }
   .chat-msg { word-wrap: break-word; }
+  /* Tool-call card — Open WebUI style. */
+  .tool-card { background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.25); border-radius: 8px; padding: 8px 10px; margin: 4px 0; font-size: 11px; }
+  .tool-card .tool-name { color: #c7d2fe; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .tool-card .tool-args { color: #94a3b8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  .tool-card .tool-result { color: #cbd5e1; margin-top: 4px; max-height: 200px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; white-space: pre-wrap; }
+  .form-section { background: rgba(15,23,42,0.55); border: 1px solid rgba(148,163,184,0.18); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .form-section h3 { color: #c7d2fe; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  .form-row label { font-size: 11px; color: #94a3b8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .form-row input, .form-row select, .form-row textarea { background: rgba(15,23,42,0.7); border: 1px solid rgba(148,163,184,0.25); border-radius: 6px; padding: 6px 8px; font-size: 12px; color: #e2e8f0; }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus { outline: none; border-color: rgba(99,102,241,0.6); }
+  .history-item { background: rgba(15,23,42,0.55); border: 1px solid rgba(148,163,184,0.18); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; font-size: 11px; cursor: pointer; }
+  .history-item:hover { background: rgba(30,41,59,0.7); }
+  .history-detail { max-height: 0; overflow: hidden; transition: max-height 0.2s ease; }
+  .history-item.expanded .history-detail { max-height: 400px; overflow-y: auto; }
+  .history-detail pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: #cbd5e1; white-space: pre-wrap; padding-top: 8px; }
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100">
@@ -30,7 +46,7 @@
 
 <main class="pb-20">
 
-  <!-- Dashboard -->
+  <!-- Home / Dashboard -->
   <div id="tab-home" class="tab-panel active px-4 py-3 space-y-3">
     <div>
       <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Services</h2>
@@ -62,25 +78,49 @@
     </div>
   </div>
 
-  <!-- Settings -->
-  <div id="tab-settings" class="tab-panel px-4 py-3 space-y-3">
-    <div>
-      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Settings</h2>
-      <p class="text-xs text-slate-400 mb-3">User-editable overlay. Saved to <code id="settingsPath">./data/settings.yaml</code>.</p>
-      <textarea id="settingsEditor" class="w-full h-64 bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-xs font-mono"
-                spellcheck="false"></textarea>
-      <div class="flex gap-2 mt-2">
-        <button onclick="loadSettings()" class="flex-1 py-2 rounded-lg bg-slate-700/60 text-slate-200 text-sm">Reload</button>
-        <button onclick="saveSettings()" class="flex-1 py-2 rounded-lg bg-indigo-500/80 text-white text-sm font-medium">Save</button>
-      </div>
-      <div id="settingsStatus" class="text-xs text-slate-500 mt-2"></div>
+  <!-- Config (config.yaml editor) -->
+  <div id="tab-config" class="tab-panel px-4 py-3 space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Config Editor</h2>
+      <button onclick="loadConfig()" class="text-[11px] text-indigo-400 px-2 py-1 rounded hover:bg-slate-800/60">Reload</button>
     </div>
+    <p class="text-[11px] text-slate-500">Edits write to <code id="configPath" class="text-slate-400">…</code>. Server restart required to apply.</p>
+    <div id="configBody"><div class="shimmer h-20 rounded-xl"></div></div>
+    <div class="flex gap-2">
+      <button onclick="loadConfig()" class="flex-1 py-2 rounded-lg bg-slate-700/60 text-slate-200 text-sm">Reload</button>
+      <button onclick="saveConfig()" class="flex-1 py-2 rounded-lg bg-indigo-500/80 text-white text-sm font-medium">Save</button>
+    </div>
+    <div id="configStatus" class="text-xs text-slate-500"></div>
+  </div>
+
+  <!-- History -->
+  <div id="tab-history" class="tab-panel px-4 py-3 space-y-3">
+    <div class="flex gap-1 text-xs">
+      <button id="histTabScans" class="flex-1 py-2 rounded-lg bg-indigo-500/30 text-indigo-200" onclick="showHistTab('scans')">Scans</button>
+      <button id="histTabAi" class="flex-1 py-2 rounded-lg bg-slate-700/60 text-slate-300" onclick="showHistTab('ai')">AI calls</button>
+      <button id="histTabFixes" class="flex-1 py-2 rounded-lg bg-slate-700/60 text-slate-300" onclick="showHistTab('fixes')">Fixes</button>
+    </div>
+    <div id="historyList"><div class="shimmer h-16 rounded-xl"></div></div>
+    <div id="historyStatus" class="text-[11px] text-slate-500"></div>
+  </div>
+
+  <!-- Settings (user overlay) -->
+  <div id="tab-settings" class="tab-panel px-4 py-3 space-y-3">
+    <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">User settings</h2>
+    <p class="text-xs text-slate-400 mb-3">Overlay preferences. Saved to <code id="settingsPath">./data/settings.yaml</code>.</p>
+    <textarea id="settingsEditor" class="w-full h-64 bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-xs font-mono"
+              spellcheck="false"></textarea>
+    <div class="flex gap-2 mt-2">
+      <button onclick="loadSettings()" class="flex-1 py-2 rounded-lg bg-slate-700/60 text-slate-200 text-sm">Reload</button>
+      <button onclick="saveSettings()" class="flex-1 py-2 rounded-lg bg-indigo-500/80 text-white text-sm font-medium">Save</button>
+    </div>
+    <div id="settingsStatus" class="text-xs text-slate-500 mt-2"></div>
   </div>
 
 </main>
 
 <nav class="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur border-t border-slate-800/50" style="padding-bottom: var(--safe-bottom)">
-  <div class="grid grid-cols-3 max-w-lg mx-auto">
+  <div class="grid grid-cols-5 max-w-lg mx-auto">
     <button class="nav-item active flex flex-col items-center py-2 gap-0.5" onclick="switchTab('home')">
       <svg class="nav-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"/></svg>
       <span class="nav-label text-[10px] text-slate-500">Home</span>
@@ -88,6 +128,14 @@
     <button class="nav-item flex flex-col items-center py-2 gap-0.5" onclick="switchTab('chat')">
       <svg class="nav-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
       <span class="nav-label text-[10px] text-slate-500">Chat</span>
+    </button>
+    <button class="nav-item flex flex-col items-center py-2 gap-0.5" onclick="switchTab('config')">
+      <svg class="nav-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+      <span class="nav-label text-[10px] text-slate-500">Config</span>
+    </button>
+    <button class="nav-item flex flex-col items-center py-2 gap-0.5" onclick="switchTab('history')">
+      <svg class="nav-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="nav-label text-[10px] text-slate-500">History</span>
     </button>
     <button class="nav-item flex flex-col items-center py-2 gap-0.5" onclick="switchTab('settings')">
       <svg class="nav-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -100,26 +148,20 @@
 const API = '';
 const API_KEY_STORAGE = 'homelab_ai_api_key';
 function $(id){ return document.getElementById(id); }
-function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// Wrap fetch so every API call carries the stored API key (if any).
-// 401 responses surface the login modal so the user can paste a key.
+// ── auth wrapper for fetch ────────────────────────────────────────────────
 const _origFetch = window.fetch.bind(window);
 window.fetch = async function(input, init={}) {
   const key = localStorage.getItem(API_KEY_STORAGE);
   if (key) {
     init.headers = init.headers || {};
-    if (init.headers instanceof Headers) {
-      init.headers.set('X-Api-Key', key);
-    } else {
-      init.headers['X-Api-Key'] = key;
-    }
+    if (init.headers instanceof Headers) { init.headers.set('X-Api-Key', key); }
+    else { init.headers['X-Api-Key'] = key; }
   }
   init.credentials = init.credentials || 'same-origin';
   const r = await _origFetch(input, init);
-  if (r.status === 401) {
-    showApiKeyModal();
-  }
+  if (r.status === 401) showApiKeyModal();
   return r;
 };
 
@@ -131,15 +173,12 @@ function showApiKeyModal() {
   modal.innerHTML = `
     <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 max-w-sm w-full">
       <h2 class="text-base font-semibold mb-2">Authentication required</h2>
-      <p class="text-xs text-slate-400 mb-3">Paste the API key from your config.yaml — it's saved locally for next time.</p>
+      <p class="text-xs text-slate-400 mb-3">Paste the API key from your config.yaml — saved locally.</p>
       <input id="apiKeyInput" type="password" placeholder="hk_..."
-             class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-3"
-             autofocus>
+             class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-3" autofocus>
       <div class="flex gap-2">
-        <button onclick="document.getElementById('apiKeyModal').remove()"
-                class="flex-1 py-2 rounded-lg bg-slate-700 text-sm">Cancel</button>
-        <button id="saveApiKeyBtn"
-                class="flex-1 py-2 rounded-lg bg-indigo-500 text-white text-sm font-medium">Save</button>
+        <button onclick="document.getElementById('apiKeyModal').remove()" class="flex-1 py-2 rounded-lg bg-slate-700 text-sm">Cancel</button>
+        <button id="saveApiKeyBtn" class="flex-1 py-2 rounded-lg bg-indigo-500 text-white text-sm font-medium">Save</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
@@ -151,23 +190,25 @@ function showApiKeyModal() {
       loadHome();
     }
   };
-  $('apiKeyInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') $('saveApiKeyBtn').click();
-  });
+  $('apiKeyInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('saveApiKeyBtn').click(); });
 }
 
+// ── tab switching ────────────────────────────────────────────────────────
 function switchTab(tab){
-  const tabs = ['home','chat','settings'];
+  const tabs = ['home','chat','config','history','settings'];
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   $(`tab-${tab}`).classList.add('active');
   document.querySelectorAll('.nav-item')[tabs.indexOf(tab)].classList.add('active');
-  const titles = {home: 'Dashboard', chat: 'AI Chat', settings: 'Settings'};
+  const titles = {home: 'Dashboard', chat: 'AI Chat', config: 'Config', history: 'History', settings: 'Settings'};
   $('headerTitle').textContent = titles[tab] || 'homelab-ai';
   if (tab === 'home') loadHome();
+  if (tab === 'config') loadConfig();
+  if (tab === 'history') showHistTab(currentHistTab);
   if (tab === 'settings') loadSettings();
 }
 
+// ── Home ─────────────────────────────────────────────────────────────────
 async function loadHome(){
   try {
     const [overview, agent] = await Promise.all([
@@ -189,14 +230,14 @@ async function loadHome(){
       : '<div class="col-span-2 text-xs text-slate-500 text-center py-4">No services configured. Edit config.yaml.</div>';
     $('agentCard').innerHTML =
       `Status: <span class="text-${agent.running ? 'emerald' : 'slate'}-300">${agent.running ? 'running' : 'idle'}</span> · `+
-      `${agent.open_failures || 0} open issue(s) · ` +
-      `interval ${agent.scan_interval}s`;
+      `${agent.open_failures || 0} open issue(s) · interval ${agent.scan_interval}s`;
     $('headerStatus').textContent = agent.running ? `agent ✓` : `agent ·`;
   } catch (e) {
     $('serviceGrid').innerHTML = `<div class="col-span-2 text-xs text-red-300">${esc(String(e))}</div>`;
   }
 }
 
+// ── Chat: streaming SSE + tool-call cards ────────────────────────────────
 async function sendChat(){
   const input = $('chatInput');
   const prompt = input.value.trim();
@@ -205,28 +246,244 @@ async function sendChat(){
   const log = $('chatLog');
   log.insertAdjacentHTML('beforeend',
     `<div class="chat-msg flex justify-end"><div class="px-3 py-2 rounded-lg bg-indigo-500/30 text-sm max-w-[80%]">${esc(prompt)}</div></div>`);
-  const thinkingId = 'thinking-'+Date.now();
+  // Container for the assistant's response — tool cards stream in, then the answer.
+  const respId = 'resp-' + Date.now();
   log.insertAdjacentHTML('beforeend',
-    `<div id="${thinkingId}" class="chat-msg flex justify-start"><div class="px-3 py-2 rounded-lg bg-slate-800/70 text-sm">…</div></div>`);
+    `<div id="${respId}" class="chat-msg flex justify-start">
+       <div class="px-3 py-2 rounded-lg bg-slate-800/70 text-sm max-w-[90%]">
+         <div id="${respId}-tools" class="space-y-1"></div>
+         <div id="${respId}-answer" class="text-slate-400">…</div>
+       </div>
+     </div>`);
   log.scrollTop = log.scrollHeight;
+
+  // We use fetch + manual SSE parsing because EventSource doesn't support
+  // POST + custom headers. The X-Api-Key wrapper above already adds auth.
   try {
-    const r = await fetch(API+'/api/ai/agent', {
+    const r = await fetch(API + '/api/ai/agent/stream', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', 'Accept': 'text/event-stream'},
       body: JSON.stringify({prompt}),
     });
-    const d = await r.json();
-    $(thinkingId).remove();
-    log.insertAdjacentHTML('beforeend',
-      `<div class="chat-msg flex justify-start"><div class="px-3 py-2 rounded-lg bg-slate-800/70 text-sm max-w-[90%]">${esc(d.answer || JSON.stringify(d))}</div></div>`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) >= 0) {
+        const event = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        handleSseEvent(event, respId);
+        log.scrollTop = log.scrollHeight;
+      }
+    }
   } catch (e) {
-    $(thinkingId).remove();
-    log.insertAdjacentHTML('beforeend',
-      `<div class="chat-msg flex justify-start"><div class="px-3 py-2 rounded-lg bg-red-500/20 text-red-300 text-sm">${esc(String(e))}</div></div>`);
+    $(`${respId}-answer`).innerHTML = `<span class="text-red-300">${esc(String(e))}</span>`;
   }
   log.scrollTop = log.scrollHeight;
 }
 
+function handleSseEvent(raw, respId){
+  let eventType = '', data = '';
+  for (const line of raw.split('\n')) {
+    if (line.startsWith('event:')) eventType = line.slice(6).trim();
+    else if (line.startsWith('data:')) data += line.slice(5).trim();
+  }
+  if (!data) return;
+  let payload;
+  try { payload = JSON.parse(data); } catch { return; }
+  if (eventType === 'tool_call') {
+    const card = document.createElement('div');
+    card.className = 'tool-card';
+    const argsText = payload.arguments ? JSON.stringify(payload.arguments) : '{}';
+    const resultText = payload.result ? JSON.stringify(payload.result, null, 2) : '';
+    card.innerHTML = `
+      <div><span class="tool-name">${esc(payload.name)}</span><span class="tool-args"> (${esc(argsText)})</span></div>
+      ${resultText ? `<div class="tool-result">${esc(resultText.slice(0, 800))}${resultText.length > 800 ? '…' : ''}</div>` : ''}
+    `;
+    $(`${respId}-tools`).appendChild(card);
+  } else if (eventType === 'answer') {
+    $(`${respId}-answer`).className = 'text-sm';
+    $(`${respId}-answer`).textContent = payload.answer || '(no answer)';
+  }
+}
+
+// ── Config tab (live config.yaml editor) ─────────────────────────────────
+let _configSchema = null;
+let _configCurrent = null;
+
+async function loadConfig(){
+  $('configStatus').textContent = 'Loading...';
+  try {
+    const [schema, current] = await Promise.all([
+      fetch(API+'/api/config/schema').then(r => r.ok ? r.json() : Promise.reject(new Error('config_editor feature not enabled'))),
+      fetch(API+'/api/config/current').then(r => r.ok ? r.json() : Promise.reject(new Error('config_editor feature not enabled'))),
+    ]);
+    _configSchema = schema; _configCurrent = current;
+    $('configPath').textContent = current.path || 'config.yaml';
+    renderConfigForm(schema, current.parsed || {});
+    $('configStatus').textContent = '';
+  } catch (e) {
+    $('configBody').innerHTML = `<div class="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300">
+      ${esc(String(e))}.<br>Enable <code>features.config_editor.enabled: true</code> in config.yaml.
+    </div>`;
+    $('configStatus').textContent = '';
+  }
+}
+
+function _readDottedPath(obj, path){
+  return path.split('.').reduce((cur, part) => (cur && typeof cur === 'object') ? cur[part] : undefined, obj);
+}
+function _setDottedPath(obj, path, value){
+  const parts = path.split('.');
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (typeof cur[parts[i]] !== 'object' || cur[parts[i]] === null) cur[parts[i]] = {};
+    cur = cur[parts[i]];
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+
+function renderConfigForm(schema, current){
+  const html = [];
+  for (const section of schema.sections) {
+    const sectionPath = section.name;
+    const sectionVal = current[sectionPath] || {};
+    html.push(`<div class="form-section" data-section="${esc(sectionPath)}">`);
+    html.push(`<h3>${esc(section.description || section.name)}</h3>`);
+    for (const f of section.fields) {
+      const fullPath = section.name === 'features' ? `features.${f.name}` : `${section.name}.${f.name}`;
+      const val = section.name === 'features'
+        ? _readDottedPath(current, fullPath)
+        : sectionVal[f.name];
+      html.push(_renderField(fullPath, f, val));
+    }
+    html.push(`</div>`);
+  }
+  $('configBody').innerHTML = html.join('\n');
+}
+
+function _renderField(path, f, value){
+  const safe = esc(path);
+  const v = value === undefined || value === null ? '' : value;
+  if (f.type === 'bool') {
+    const checked = (v === true || v === 'true' || v === 1) ? 'checked' : '';
+    return `<div class="form-row"><label>${esc(f.name)}</label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" data-cfg="${safe}" ${checked}>
+      <span class="text-slate-400">enabled</span></label></div>`;
+  }
+  if (f.type === 'enum') {
+    return `<div class="form-row"><label>${esc(f.name)}</label>
+      <select data-cfg="${safe}">${(f.options||[]).map(o => `<option value="${esc(o)}" ${v===o?'selected':''}>${esc(o)}</option>`).join('')}</select></div>`;
+  }
+  if (f.type === 'secret') {
+    const hint = (typeof v === 'string' && v.startsWith('•')) ? ' (currently set — leave blank to keep)' : '';
+    return `<div class="form-row"><label>${esc(f.name)}${hint}</label>
+      <input type="password" data-cfg="${safe}" placeholder="${esc(v)}" data-original-set="${typeof v==='string' && v.startsWith('•') ? '1' : ''}"></div>`;
+  }
+  const type = (f.type === 'integer') ? 'number' : 'text';
+  return `<div class="form-row"><label>${esc(f.name)}</label>
+    <input type="${type}" data-cfg="${safe}" value="${esc(v)}"></div>`;
+}
+
+async function saveConfig(){
+  if (!_configSchema || !_configCurrent) { $('configStatus').textContent = 'Load first.'; return; }
+  // Build a new parsed object by walking inputs.
+  const out = JSON.parse(JSON.stringify(_configCurrent.parsed || {}));
+  document.querySelectorAll('#configBody [data-cfg]').forEach(el => {
+    const path = el.dataset.cfg;
+    let val;
+    if (el.type === 'checkbox') val = el.checked;
+    else if (el.type === 'number') val = el.value === '' ? undefined : Number(el.value);
+    else if (el.type === 'password') {
+      // Empty password field for an already-set secret means "keep existing".
+      if (!el.value && el.dataset.originalSet === '1') return;
+      val = el.value;
+    }
+    else val = el.value;
+    if (val === undefined) return;
+    _setDottedPath(out, path, val);
+  });
+
+  $('configStatus').textContent = 'Saving...';
+  try {
+    const r = await fetch(API+'/api/config/save', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({parsed: out}),
+    });
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error(`HTTP ${r.status}: ${t.slice(0, 200)}`);
+    }
+    $('configStatus').innerHTML = '<span class="text-emerald-300">Saved. Restart the server for changes to apply.</span>';
+  } catch (e) {
+    $('configStatus').innerHTML = `<span class="text-red-300">${esc(String(e))}</span>`;
+  }
+}
+
+// ── History tab ───────────────────────────────────────────────────────────
+let currentHistTab = 'scans';
+async function showHistTab(which){
+  currentHistTab = which;
+  for (const k of ['scans','ai','fixes']) {
+    const el = $(`histTab${k.charAt(0).toUpperCase()+k.slice(1)}`);
+    if (k === which) { el.className = 'flex-1 py-2 rounded-lg bg-indigo-500/30 text-indigo-200'; }
+    else { el.className = 'flex-1 py-2 rounded-lg bg-slate-700/60 text-slate-300'; }
+  }
+  $('historyList').innerHTML = '<div class="shimmer h-16 rounded-xl"></div>';
+  $('historyStatus').textContent = '';
+  try {
+    const path = {scans: '/api/history/scans', ai: '/api/history/ai', fixes: '/api/history/fixes'}[which];
+    const r = await fetch(API + path);
+    if (r.status === 404) {
+      $('historyList').innerHTML = `<div class="p-3 rounded-xl bg-slate-800/40 text-xs text-slate-400">
+        History feature is not enabled.<br>Set <code>features.history.enabled: true</code> in config.yaml.</div>`;
+      return;
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    renderHistory(which, data);
+  } catch (e) {
+    $('historyList').innerHTML = `<div class="text-xs text-red-300">${esc(String(e))}</div>`;
+  }
+}
+
+function renderHistory(which, data){
+  const list = which === 'scans' ? data.scans : which === 'ai' ? data.ai_calls : data.fixes;
+  if (!list || !list.length) {
+    $('historyList').innerHTML = `<div class="p-3 rounded-xl bg-slate-800/40 text-xs text-slate-400 text-center">No ${which} recorded yet.</div>`;
+    return;
+  }
+  const html = list.slice(0, 100).map((item, idx) => {
+    const ts = new Date((item.ts || 0) * 1000).toLocaleString();
+    let summary = '';
+    let detail = '';
+    if (which === 'scans') {
+      const s = item.summary || {};
+      summary = `<span class="text-slate-100">${ts}</span> · findings ${s.findings ?? '?'} · fixed ${s.fixed ?? 0} · escalated ${s.escalated ?? 0}`;
+      detail = JSON.stringify(s, null, 2);
+    } else if (which === 'ai') {
+      summary = `<span class="text-slate-100">${ts}</span> · ${esc(item.model || '?')} · ${item.duration_ms ?? 0}ms`;
+      detail = `prompt: ${item.prompt || ''}\n\nanswer: ${item.answer || ''}\n\ntool_calls: ${JSON.stringify(item.tool_calls || [], null, 2)}`;
+    } else {
+      summary = `<span class="text-slate-100">${ts}</span> · ${esc(item.target)} · tier ${item.tier} · <span class="${item.outcome==='ok'?'text-emerald-300':'text-amber-300'}">${esc(item.outcome)}</span>`;
+      detail = item.detail || '';
+    }
+    return `<div class="history-item" onclick="this.classList.toggle('expanded')">
+      <div>${summary}</div>
+      <div class="history-detail"><pre>${esc(detail)}</pre></div>
+    </div>`;
+  }).join('');
+  $('historyList').innerHTML = html;
+  $('historyStatus').textContent = `${list.length} entries`;
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────
 async function loadSettings(){
   try {
     const r = await fetch(API+'/api/settings');
@@ -242,15 +499,14 @@ async function saveSettings(){
   catch (e) { $('settingsStatus').textContent = 'Invalid JSON: '+e; return; }
   try {
     const r = await fetch(API+'/api/settings', {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(parsed),
+      method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(parsed),
     });
     if (!r.ok) throw new Error('HTTP '+r.status);
     $('settingsStatus').textContent = 'Saved.';
   } catch (e) { $('settingsStatus').textContent = 'Error: '+e; }
 }
 
+// ── Boot ──────────────────────────────────────────────────────────────────
 loadHome();
 setInterval(loadHome, 30000);
 </script>
