@@ -1,5 +1,13 @@
 # Adding your own service
 
+> **Looking for the no-code path?** For standard REST APIs, see
+> [declarative-services.md](declarative-services.md) — you can add a whole
+> service in a YAML block, no Python. This page covers the Python plugin
+> path for cases that don't fit (wire protocols, multi-step flows,
+> response transforms beyond a dot-path).
+
+
+
 A "service" is anything in your homelab with an HTTP API. The plugin describes how homelab-ai should monitor it and what AI-callable tools it should expose.
 
 ## Minimal plugin

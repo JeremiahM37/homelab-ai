@@ -198,7 +198,38 @@ Service entries map to plugins by name. Unknown names are loaded from `homelab_a
 
 ---
 
-## Adding your own service
+## Adding any service (no code)
+
+For any service that speaks HTTP-JSON, you can add support **without writing Python** — just a config block:
+
+```yaml
+services:
+  my_thing:
+    plugin: generic_http
+    url: http://my-thing:8080
+    auth:
+      type: bearer
+      key: ${MY_THING_TOKEN}
+    health:
+      path: /healthz
+    tools:
+      - name: list_widgets
+        description: List widgets from My Thing.
+        path: /api/widgets
+        params:
+          limit: {type: integer, default: 10}
+      - name: get_widget
+        description: Get one widget by ID.
+        path: /api/widgets/{id}
+        params:
+          id: {type: string, required: true, in: path}
+```
+
+Restart, and the agent monitors `my_thing` health every scan while the AI gains two new tools. See [docs/declarative-services.md](docs/declarative-services.md) for the full schema.
+
+The 30 built-in Python plugins (sonarr, radarr, jellyfin, nut, etc.) remain the *finished build* — they handle wire protocols, multi-step auth, and complex transforms. `generic_http` is the *blueprint* for everything else.
+
+## Adding a Python plugin (for cases generic_http can't handle)
 
 ```python
 # ~/.config/homelab-ai/services/my_thing.py

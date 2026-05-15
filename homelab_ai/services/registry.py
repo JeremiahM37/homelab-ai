@@ -81,18 +81,34 @@ def _resolve_plugin(name: str) -> type[Service] | None:
 
 
 def load_services(cfg: Config, http: aiohttp.ClientSession) -> dict[str, Service]:
-    """Instantiate every service named in cfg.services and return {name: instance}."""
+    """Instantiate every service named in cfg.services and return {name: instance}.
+
+    Resolution order for picking the plugin:
+      1. Explicit `plugin: <name>` in the service config block — lets users
+         wire any service name to `generic_http` (or any custom plugin).
+      2. Otherwise the service's key in cfg.services is used as the plugin
+         name (this is the original behaviour — `services.sonarr` →
+         `homelab_ai.services.sonarr`).
+    """
     out: dict[str, Service] = {}
     for name, settings in cfg.services.items():
         if not isinstance(settings, dict):
             logger.warning("services.%s: expected a dict, got %r — skipping", name, type(settings))
             continue
-        cls = _resolve_plugin(name)
+        plugin_name = settings.get("plugin") or name
+        cls = _resolve_plugin(plugin_name)
         if not cls:
-            logger.warning("no plugin found for service %r — skipping", name)
+            logger.warning(
+                "no plugin found for service %r (plugin=%r) — skipping. "
+                "For arbitrary REST APIs add `plugin: generic_http` to the config.",
+                name, plugin_name,
+            )
             continue
+        # Inject the service name so generic_http and others can use it for
+        # logging / response messages.
+        settings_with_name = {**settings, "_service_name": name}
         try:
-            out[name] = cls(settings, http)
+            out[name] = cls(settings_with_name, http)
         except Exception as e:
             logger.exception("failed to instantiate service %s: %s", name, e)
     return out

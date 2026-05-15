@@ -70,6 +70,13 @@ MODULES = [
     "homelab_ai.automations.engine",
     "homelab_ai.agent.modules.anomaly_detector",
     "homelab_ai.services.nut",
+    "homelab_ai.services.generic_http",
+    "homelab_ai.services.tdarr",
+    "homelab_ai.services.calibre_web",
+    "homelab_ai.services.gluetun",
+    "homelab_ai.services.changedetection",
+    "homelab_ai.services.n8n",
+    "homelab_ai.services.grafana",
     # api
     "homelab_ai.api.main",
     "homelab_ai.api.routers.agent",
