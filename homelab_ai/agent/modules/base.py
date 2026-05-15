@@ -40,7 +40,7 @@ class AgentModule:
     """Override in subclasses. Set `name` and implement `scan()`."""
     name: str = "base"
 
-    def __init__(self, cfg: "Config", services: dict[str, "Service"]):
+    def __init__(self, cfg: Config, services: dict[str, Service]):
         self.cfg = cfg
         self.services = services
 

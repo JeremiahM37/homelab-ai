@@ -13,14 +13,14 @@ if TYPE_CHECKING:
 
 
 @check(group="core")
-def config_loads(cfg: "Config") -> None:
+def config_loads(cfg: Config) -> None:
     """Smoke: the config dataclass exists and has sane defaults."""
     assert cfg.agent.scan_interval >= 30, "scan_interval too short"
     assert cfg.server.port > 0
 
 
 @check(group="core")
-def fixer_caps_present(cfg: "Config") -> None:
+def fixer_caps_present(cfg: Config) -> None:
     """Tier-3 caps must be set or the smart fixer is unsafe."""
     f = cfg.agent.fixer
     assert f.max_files_changed_per_fix >= 1
@@ -30,7 +30,7 @@ def fixer_caps_present(cfg: "Config") -> None:
 
 
 @check(group="services")
-def services_reachable(cfg: "Config") -> str | None:
+def services_reachable(cfg: Config) -> str | None:
     """Hit /api/overview through the loaded service plugins."""
     if not cfg.services:
         return "no services configured — nothing to check"
@@ -60,7 +60,7 @@ def services_reachable(cfg: "Config") -> str | None:
 
 
 @check(group="ai")
-def ollama_reachable(cfg: "Config") -> str | None:
+def ollama_reachable(cfg: Config) -> str | None:
     """Confirm the configured Ollama URL responds. Warning, not hard fail."""
     async def _run():
         try:

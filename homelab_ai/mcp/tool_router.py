@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger("homelab_ai.mcp.router")
 
@@ -49,7 +49,10 @@ class SemanticToolRouter:
     async def select(self, query: str, k: int = 8) -> list[dict]:
         if self._tool_embeddings and self.embedder:
             q_emb = await self.embedder(query)
-            scored = [(self._cosine(q_emb, e), t) for e, t in zip(self._tool_embeddings, self.tools)]
+            scored = [
+                (self._cosine(q_emb, e), t)
+                for e, t in zip(self._tool_embeddings, self.tools, strict=False)
+            ]
         else:
             q_tokens = _tokenize(query)
             scored = [
@@ -63,7 +66,7 @@ class SemanticToolRouter:
     def _cosine(a: list[float], b: list[float]) -> float:
         if not a or not b or len(a) != len(b):
             return 0.0
-        dot = sum(x * y for x, y in zip(a, b))
+        dot = sum(x * y for x, y in zip(a, b, strict=False))
         na = sum(x * x for x in a) ** 0.5
         nb = sum(x * x for x in b) ** 0.5
         return dot / (na * nb) if na and nb else 0.0

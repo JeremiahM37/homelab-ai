@@ -73,7 +73,7 @@ READ_FILE_TOOL = {
 
 
 class SmartFixer:
-    def __init__(self, cfg: "Config", http: aiohttp.ClientSession):
+    def __init__(self, cfg: Config, http: aiohttp.ClientSession):
         self.cfg = cfg
         self.http = http
         self.backup = FileBackup(cfg.agent.fixer.backup_dir)
@@ -89,7 +89,7 @@ class SmartFixer:
         except (ValueError, OSError):
             return False
 
-    async def attempt_fix(self, finding: "Finding") -> dict:
+    async def attempt_fix(self, finding: Finding) -> dict:
         plan = await self._invoke_smart_llm(finding)
         if not plan:
             return {"ok": False, "detail": "no plan returned"}
@@ -112,7 +112,10 @@ class SmartFixer:
                 old_content.splitlines(), new_content.splitlines(),
                 fromfile=path, tofile=path, lineterm="",
             ))
-            total_changed += sum(1 for l in diff_lines if l.startswith(("+", "-")) and not l.startswith(("+++", "---")))
+            total_changed += sum(
+                1 for ln in diff_lines
+                if ln.startswith(("+", "-")) and not ln.startswith(("+++", "---"))
+            )
             entry["_diff_lines"] = diff_lines
             entry["_old_content"] = old_content
 
@@ -141,7 +144,7 @@ class SmartFixer:
 
         return {"ok": True, "files_changed": len(plan["files_to_edit"]), "lines_changed": total_changed}
 
-    async def _invoke_smart_llm(self, finding: "Finding") -> dict | None:
+    async def _invoke_smart_llm(self, finding: Finding) -> dict | None:
         f = self.cfg.agent.fixer
         sys_prompt = SYSTEM_PROMPT.format(
             max_files=f.max_files_changed_per_fix,

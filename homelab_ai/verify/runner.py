@@ -11,9 +11,10 @@ from __future__ import annotations
 import logging
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from homelab_ai.config import Config
@@ -49,7 +50,7 @@ class Result:
     duration_s: float = 0.0
 
 
-def _run_checks(cfg: "Config") -> Result:
+def _run_checks(cfg: Config) -> Result:
     # Importing pulls in @check-decorated functions.
     from . import builtin_checks  # noqa: F401
     selected = [c for c in _CHECKS if c.group in (cfg.verify.groups or [])]
@@ -74,7 +75,7 @@ def _run_checks(cfg: "Config") -> Result:
     return res
 
 
-def _write_fix_request(cfg: "Config", res: Result) -> Path | None:
+def _write_fix_request(cfg: Config, res: Result) -> Path | None:
     if not res.failures:
         return None
     path = Path(cfg.verify.fix_request_path)
@@ -89,7 +90,7 @@ def _write_fix_request(cfg: "Config", res: Result) -> Path | None:
     return path
 
 
-def run_all(cfg: "Config") -> int:
+def run_all(cfg: Config) -> int:
     res = _run_checks(cfg)
     print(f"\nVERIFY: {res.passed} passed, {res.failed} failed, "
           f"{res.warned} warned ({res.duration_s:.1f}s)")

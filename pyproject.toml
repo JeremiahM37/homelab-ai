@@ -61,7 +61,19 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
-ignore = ["E501"]
+ignore = [
+    "E501",   # line length
+    "B008",   # FastAPI uses Body(...) in defaults idiomatically
+    "B904",   # `raise from` chain — readable as-is in this code
+    "SIM117", # nested `with` is clearer than stacked context managers here
+    "UP006",  # legacy typing.List is fine for compatibility
+    "UP007",  # X | Y union syntax not always cleaner
+    "UP037",  # quoted forward refs are needed under TYPE_CHECKING
+    "UP045",  # X | None vs Optional[X] — both fine
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F401", "F811"]   # test imports + redefinitions are expected
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

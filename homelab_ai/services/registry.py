@@ -80,7 +80,7 @@ def _resolve_plugin(name: str) -> type[Service] | None:
     return None
 
 
-def load_services(cfg: "Config", http: aiohttp.ClientSession) -> dict[str, Service]:
+def load_services(cfg: Config, http: aiohttp.ClientSession) -> dict[str, Service]:
     """Instantiate every service named in cfg.services and return {name: instance}."""
     out: dict[str, Service] = {}
     for name, settings in cfg.services.items():

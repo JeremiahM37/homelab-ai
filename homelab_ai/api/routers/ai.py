@@ -14,7 +14,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any
 
 import aiohttp
 from fastapi import APIRouter, Body, HTTPException, Request
@@ -26,6 +27,13 @@ logger = logging.getLogger("homelab_ai.api.ai")
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 MAX_TOOL_ITERATIONS = 6
+# If the LLM calls the same tool with identical arguments more than this many
+# times in a single conversation we stop and force a final answer.
+MAX_SAME_CALL = 2
+# Truncate tool results that are larger than this before feeding back to the
+# LLM (it tends to derail when handed multi-KB JSON).
+MAX_TOOL_RESULT_CHARS = 4000
+
 SYSTEM_PROMPT = (
     "You are a homelab assistant. You have a catalog of tools that wrap real "
     "services on the user's network — call them when relevant. Stay concise. "
@@ -93,8 +101,22 @@ async def _run_tool(tool: dict, arguments: dict) -> Any:
         return {"error": f"{type(e).__name__}: {e}"}
 
 
-def _select_tools(query: str, all_tools: list[dict], k: int = 16) -> list[dict]:
-    """Keyword overlap selection (no embedding dep). Cheap and fast."""
+async def _select_tools(request: Request, query: str, all_tools: list[dict],
+                        k: int = 16) -> list[dict]:
+    """Pick the top-k relevant tools.
+
+    Uses the embedding-backed router if it's warm; falls back to keyword
+    overlap if Ollama isn't reachable or the catalog is small.
+    """
+    if len(all_tools) <= k:
+        return all_tools
+    router = getattr(request.app.state, "tool_router", None)
+    if router is not None:
+        try:
+            return await router.select(query, k=k)
+        except Exception as e:
+            logger.warning("semantic router failed, falling back to keyword: %s", e)
+
     import re
     word = re.compile(r"\b[a-zA-Z][a-zA-Z0-9_-]+\b")
     q_tokens = {w.lower() for w in word.findall(query) if len(w) > 2}
@@ -107,7 +129,6 @@ def _select_tools(query: str, all_tools: list[dict], k: int = 16) -> list[dict]:
         overlap = len(q_tokens & t_tokens)
         scored.append((overlap, t))
     scored.sort(key=lambda x: x[0], reverse=True)
-    # If nothing overlaps, give the LLM the first k anyway.
     if scored[0][0] == 0:
         return all_tools[:k]
     return [t for _, t in scored[:k]]
@@ -117,10 +138,10 @@ async def _agent_loop(
     request: Request,
     prompt: str,
     stream: bool = False,
-) -> dict | "AsyncIterator[dict]":
+) -> dict | AsyncIterator[dict]:
     cfg = request.app.state.cfg
     all_tools = _collect_tools(request.app.state.services)
-    selected = _select_tools(prompt, all_tools)
+    selected = await _select_tools(request, prompt, all_tools)
     tool_index = {t["name"]: t for t in selected}
 
     client = OllamaClient(cfg.ollama.url, request.app.state.http, cfg.ollama.keep_alive)
@@ -134,6 +155,8 @@ async def _agent_loop(
         {"role": "user", "content": prompt},
     ]
     tool_calls_made: list[dict] = []
+    # Track (tool_name, json-args) seen this conversation to break loops.
+    seen_calls: dict[tuple, int] = {}
 
     for iteration in range(MAX_TOOL_ITERATIONS):
         # Always non-streaming here; we re-stream the final answer at the end.
@@ -162,6 +185,7 @@ async def _agent_loop(
             }
 
         messages.append(msg)
+        looped = False
         for call in calls:
             fn = (call.get("function") or {})
             name = fn.get("name")
@@ -171,16 +195,25 @@ async def _agent_loop(
                     args = json.loads(args)
                 except json.JSONDecodeError:
                     args = {}
-            tool = tool_index.get(name)
-            if not tool:
-                tool_result = {"error": f"unknown tool {name!r}"}
+            sig = (name, json.dumps(args, sort_keys=True, default=str))
+            seen_calls[sig] = seen_calls.get(sig, 0) + 1
+            if seen_calls[sig] > MAX_SAME_CALL:
+                looped = True
+                tool_result = {"error": "duplicate call suppressed — answer with the data you already have"}
             else:
-                tool_result = await _run_tool(tool, args)
+                tool = tool_index.get(name)
+                if not tool:
+                    tool_result = {"error": f"unknown tool {name!r}"}
+                else:
+                    tool_result = await _run_tool(tool, args)
             tool_calls_made.append({"name": name, "arguments": args, "result": tool_result})
-            messages.append({
-                "role": "tool",
-                "content": json.dumps(tool_result, default=str),
-            })
+            payload = json.dumps(tool_result, default=str)
+            if len(payload) > MAX_TOOL_RESULT_CHARS:
+                payload = payload[:MAX_TOOL_RESULT_CHARS] + f"\n…(truncated {len(payload)-MAX_TOOL_RESULT_CHARS} chars)"
+            messages.append({"role": "tool", "content": payload})
+        if looped:
+            # Force a final-answer round with no tools.
+            break
 
     # Iteration cap reached — force a final answer with no tools.
     try:

@@ -1,5 +1,4 @@
 """Config loader sanity tests."""
-import os
 from pathlib import Path
 
 from homelab_ai.config import load_config

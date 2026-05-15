@@ -7,7 +7,8 @@ returned to the agent for Tier-2 escalation.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from homelab_ai.agent.modules import Finding
@@ -18,14 +19,14 @@ logger = logging.getLogger("homelab_ai.fixer.tier1")
 Handler = Callable[["Finding", dict[str, "Service"]], Awaitable[dict]]
 
 
-async def _restart_service(finding: "Finding", services: dict[str, "Service"]) -> dict:
+async def _restart_service(finding: Finding, services: dict[str, Service]) -> dict:
     svc = services.get(finding.target)
     if not svc:
         return {"ok": False, "detail": f"service {finding.target!r} not in registry"}
     return await svc.restart()
 
 
-async def _restart_container(finding: "Finding", services: dict[str, "Service"]) -> dict:
+async def _restart_container(finding: Finding, services: dict[str, Service]) -> dict:
     """Generic: restart a Docker container by name via local Docker socket.
 
     Plumbing is intentionally minimal so the prototype stays small. Real
@@ -50,7 +51,7 @@ RULES: dict[str, Handler] = {
 }
 
 
-async def try_fix(finding: "Finding", services: dict[str, "Service"]) -> dict | None:
+async def try_fix(finding: Finding, services: dict[str, Service]) -> dict | None:
     """Return the fix result, or None if no rule matched."""
     handler = RULES.get(finding.fix_hint)
     if not handler:

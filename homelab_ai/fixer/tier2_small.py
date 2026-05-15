@@ -74,9 +74,9 @@ TOOL_SCHEMAS = [
 
 
 async def attempt_fix(
-    cfg: "Config",
-    finding: "Finding",
-    services: dict[str, "Service"],
+    cfg: Config,
+    finding: Finding,
+    services: dict[str, Service],
     http: aiohttp.ClientSession,
 ) -> dict:
     client = OllamaClient(cfg.ollama.url, http, cfg.ollama.keep_alive)

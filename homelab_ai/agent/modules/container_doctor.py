@@ -6,7 +6,6 @@ agent.container_doctor.docker_host in config to override.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import aiohttp
 
@@ -18,7 +17,7 @@ logger = logging.getLogger("homelab_ai.agent.container_doctor")
 class ContainerDoctorModule(AgentModule):
     name = "container_doctor"
 
-    async def _docker_get(self, path: str) -> Optional[list | dict]:
+    async def _docker_get(self, path: str) -> list | dict | None:
         cfg = (self.cfg._raw.get("agent") or {}).get("container_doctor") or {}
         host = cfg.get("docker_host", "unix:///var/run/docker.sock")
         connector = aiohttp.UnixConnector(path=host.replace("unix://", "")) if host.startswith("unix://") else None

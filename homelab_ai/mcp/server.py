@@ -50,7 +50,7 @@ def _require_mcp():
         sys.exit(2)
 
 
-async def _run(cfg: "Config") -> None:
+async def _run(cfg: Config) -> None:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
     from mcp.types import TextContent, Tool
@@ -91,11 +91,10 @@ async def _run(cfg: "Config") -> None:
             await server.run(read, write, server.create_initialization_options())
 
 
-def run_mcp_server(cfg: "Config") -> int:
+def run_mcp_server(cfg: Config) -> int:
     """Entry point from the CLI."""
+    import contextlib
     _require_mcp()
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(_run(cfg))
-    except KeyboardInterrupt:
-        pass
     return 0

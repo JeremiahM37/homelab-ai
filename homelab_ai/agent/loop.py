@@ -25,27 +25,43 @@ if TYPE_CHECKING:
 logger = logging.getLogger("homelab_ai.agent")
 
 
-def _load_modules(cfg: "Config", services: dict[str, "Service"]) -> list[AgentModule]:
+def _user_agent_module_dirs() -> list[Path]:
+    import os
+    dirs = [Path.home() / ".config" / "homelab-ai" / "agent_modules"]
+    if extra := os.environ.get("HOMELAB_AI_AGENT_MODULES"):
+        dirs.append(Path(extra))
+    return [d for d in dirs if d.is_dir()]
+
+
+def _load_modules(cfg: Config, services: dict[str, Service]) -> list[AgentModule]:
+    import importlib.util as _ilu
+
     out: list[AgentModule] = []
     for name in cfg.agent.modules:
+        module = None
         try:
             module = importlib.import_module(f"homelab_ai.agent.modules.{name}")
         except ImportError:
-            user_dir = Path.home() / ".config" / "homelab-ai" / "agent_modules"
-            path = user_dir / f"{name}.py"
-            if not path.is_file():
+            for d in _user_agent_module_dirs():
+                path = d / f"{name}.py"
+                if path.is_file():
+                    try:
+                        spec = _ilu.spec_from_file_location(f"user_modules.{name}", path)
+                        module = _ilu.module_from_spec(spec)
+                        spec.loader.exec_module(module)
+                        break
+                    except Exception as e:
+                        logger.warning("failed to load user agent module %s: %s", path, e)
+            if module is None:
                 logger.warning("agent module %r not found", name)
                 continue
-            spec = importlib.util.spec_from_file_location(f"user_modules.{name}", path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
 
         cls = None
         for _n, obj in inspect.getmembers(module):
             if inspect.isclass(obj) and issubclass(obj, AgentModule) and obj is not AgentModule:
+                cls = obj
                 if obj.__module__ == module.__name__:
-                    cls = obj
-                    break
+                    break  # prefer one defined here, but accept re-exports
         if not cls:
             logger.warning("no AgentModule subclass in %s", module.__name__)
             continue
@@ -56,21 +72,37 @@ def _load_modules(cfg: "Config", services: dict[str, "Service"]) -> list[AgentMo
 async def _do_scan(
     modules: list[AgentModule],
     memory: FailureMemory,
-    services: dict[str, "Service"],
-    http: "aiohttp.ClientSession",
-    cfg: "Config",
+    services: dict[str, Service],
+    http: aiohttp.ClientSession,
+    cfg: Config,
 ) -> dict:
-    from homelab_ai.fixer import tier1_rules
-    from homelab_ai.fixer import tier2_small
+    from homelab_ai.fixer import tier1_rules, tier2_small
     from homelab_ai.fixer.tier3_smart import SmartFixer
+    from homelab_ai.notifications import Notifier
 
     started = time.time()
+    notifier = Notifier(cfg.agent.notify, http, state_path=Path("./data/notifier.json"))
     findings: list[Finding] = []
     for m in modules:
         try:
             findings.extend(await m.scan())
         except Exception as e:
             logger.exception("module %s raised: %s", m.name, e)
+
+    # Resolve previously-open failures that didn't come back this scan.
+    current_fps = {f"{f.module}|{f.target}|{f.message[:200]}" for f in findings}
+    for prev in memory.open_failures():
+        prev_fp = f"{prev['module']}|{prev['target']}|{prev['error'][:200]}"
+        if prev_fp in current_fps:
+            continue
+        memory.mark_resolved(prev["fingerprint"])
+        # Build a stub Finding for the notifier (we don't have the original object).
+        from homelab_ai.agent.modules.base import Finding as _F
+        from homelab_ai.agent.modules.base import Severity as _Sev
+        await notifier.publish_resolved(_F(
+            module=prev["module"], target=prev["target"],
+            severity=_Sev.INFO, message=prev["error"],
+        ))
 
     fixed = 0
     escalated = 0
@@ -113,7 +145,9 @@ async def _do_scan(
             except Exception as e:
                 logger.exception("tier-3 raised: %s", e)
 
+        # Nothing fixed this — escalate and notify.
         escalated += 1
+        await notifier.publish(f, action_taken="escalated to human")
 
     elapsed = time.time() - started
     summary = {
@@ -127,7 +161,7 @@ async def _do_scan(
     return summary
 
 
-async def scan_once(cfg: "Config") -> int:
+async def scan_once(cfg: Config) -> int:
     """Run a single scan and exit."""
     from homelab_ai.services import load_services
 
@@ -146,7 +180,7 @@ async def scan_once(cfg: "Config") -> int:
     return 0
 
 
-async def run_forever(cfg: "Config") -> None:
+async def run_forever(cfg: Config) -> None:
     """Long-running scan loop."""
     from homelab_ai.services import load_services
 

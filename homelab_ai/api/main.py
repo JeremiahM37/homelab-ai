@@ -25,6 +25,8 @@ async def _lifespan(app: FastAPI):
     cfg: Config = app.state.cfg
     app.state.http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
     app.state.services = load_services(cfg, app.state.http)
+    app.state.tool_router = None  # populated in background if embeddings work
+    asyncio.create_task(_warm_tool_router(app))
     if cfg.agent.enabled:
         app.state.agent_task = asyncio.create_task(run_forever(cfg))
     else:
@@ -35,6 +37,37 @@ async def _lifespan(app: FastAPI):
         if app.state.agent_task:
             app.state.agent_task.cancel()
         await app.state.http.close()
+
+
+async def _warm_tool_router(app: FastAPI):
+    """Build the semantic tool router on a background task — booting the
+    server isn't blocked by Ollama embedding the whole tool catalog.
+    """
+    from homelab_ai.api.routers.ai import _collect_tools
+    from homelab_ai.llm.ollama import OllamaClient
+    from homelab_ai.mcp.tool_router import SemanticToolRouter
+
+    cfg = app.state.cfg
+    tools = _collect_tools(app.state.services)
+    embed_model = (cfg._raw.get("ollama") or {}).get("embed_model", "nomic-embed-text")
+    if not tools:
+        return
+    client = OllamaClient(cfg.ollama.url, app.state.http, cfg.ollama.keep_alive)
+
+    async def _embed(text: str):
+        try:
+            return await client.embed(embed_model, text)
+        except Exception:
+            return []
+
+    router = SemanticToolRouter(tools, embedder=_embed)
+    try:
+        report = await router.warm_up()
+        if report.get("backend") == "embedding":
+            app.state.tool_router = router
+            logger.info("tool router warmed: %s", report)
+    except Exception as e:
+        logger.warning("tool router warm-up skipped: %s", e)
 
 
 def create_app(cfg: Config) -> FastAPI:

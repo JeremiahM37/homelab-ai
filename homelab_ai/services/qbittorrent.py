@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import aiohttp
 
@@ -16,7 +15,7 @@ class QBittorrent(Service):
 
     def __init__(self, config: dict, http: aiohttp.ClientSession):
         super().__init__(config, http)
-        self._cookie: Optional[str] = None
+        self._cookie: str | None = None
 
     async def _login(self) -> None:
         if self._cookie:

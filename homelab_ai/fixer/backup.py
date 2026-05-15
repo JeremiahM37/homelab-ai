@@ -42,10 +42,7 @@ class FileBackup:
         # backup_id format: timestamp-sha-basename — the destination is
         # whatever the caller provides, otherwise we just put it next to
         # the backup with .restored suffix.
-        if dest is None:
-            dest = Path(self.dir / f"{backup_id}.restored")
-        else:
-            dest = Path(dest)
+        dest = Path(self.dir / f"{backup_id}.restored") if dest is None else Path(dest)
         shutil.copy2(src, dest)
         logger.info("restored %s -> %s", backup_id, dest)
         return dest
