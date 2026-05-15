@@ -24,7 +24,16 @@ class FakeResponse:
         self._json = json_data
         self._text = text_data
         self.headers = headers or {}
-        self.content_length = content_length if content_length is not None else len(text_data)
+        # Make sure content_length is truthy when json_data is provided so
+        # plugins that gate on `r.content_length` don't short-circuit to {}.
+        if content_length is not None:
+            self.content_length = content_length
+        elif text_data:
+            self.content_length = len(text_data)
+        elif json_data is not None:
+            self.content_length = 1
+        else:
+            self.content_length = 0
         self.cookies = {}
 
     async def __aenter__(self): return self
