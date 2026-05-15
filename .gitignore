@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual envs
+venv/
+.venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Runtime
+*.log
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+backups/
+audit_log.md
+fix-request.md
+
+# User config
+config.yaml
+config.test.yaml
+config.*.yaml
+!config.example.yaml
+.env
+*.local.yaml
+*.secrets.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Built static assets
+homelab_ai/ui/static/dist/

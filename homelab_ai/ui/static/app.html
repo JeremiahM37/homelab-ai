@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>homelab-ai</title>
+<link rel="manifest" href="/static/manifest.json">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { color-scheme: dark; --safe-bottom: env(safe-area-inset-bottom, 0px); }
+  html, body { background: #0b1020; color: #e2e8f0; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .nav-item.active .nav-icon { color: #818cf8; }
+  .nav-item.active .nav-label { color: #c7d2fe; }
+  .shimmer { background: linear-gradient(90deg, rgba(30,41,59,0.4) 0%, rgba(51,65,85,0.55) 50%, rgba(30,41,59,0.4) 100%); background-size: 200% 100%; animation: shim 1.4s ease-in-out infinite; }
+  @keyframes shim { 0% {background-position: 200% 0;} 100% {background-position: -200% 0;} }
+  .chat-msg { word-wrap: break-word; }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100">
+
+<header class="sticky top-0 z-30 bg-slate-950/80 backdrop-blur border-b border-slate-800/50 px-4 py-3 flex items-center justify-between">
+  <h1 id="headerTitle" class="text-base font-semibold">homelab-ai</h1>
+  <span class="text-xs text-slate-500" id="headerStatus">·</span>
+</header>
+
+<main class="pb-20">
+
+  <!-- Dashboard -->
+  <div id="tab-home" class="tab-panel active px-4 py-3 space-y-3">
+    <div>
+      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Services</h2>
+      <div id="serviceGrid" class="grid grid-cols-2 gap-2">
+        <div class="shimmer h-16 rounded-xl"></div>
+        <div class="shimmer h-16 rounded-xl"></div>
+        <div class="shimmer h-16 rounded-xl"></div>
+        <div class="shimmer h-16 rounded-xl"></div>
+      </div>
+    </div>
+    <div>
+      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Agent</h2>
+      <div id="agentCard" class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-sm">
+        <div class="shimmer h-10 rounded"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Chat -->
+  <div id="tab-chat" class="tab-panel flex flex-col" style="height: calc(100vh - 116px);">
+    <div id="chatLog" class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div class="text-xs text-slate-500 text-center py-2">Ask anything about your homelab.</div>
+    </div>
+    <div class="px-3 py-2 border-t border-slate-800/60 flex gap-2">
+      <input id="chatInput" type="text" placeholder="What's broken right now?"
+             class="flex-1 bg-slate-800/70 border border-slate-700/60 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500/60"
+             onkeydown="if(event.key==='Enter') sendChat()">
+      <button onclick="sendChat()" class="px-4 py-2 rounded-lg bg-indigo-500/80 text-white text-sm font-medium">Send</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="tab-settings" class="tab-panel px-4 py-3 space-y-3">
+    <div>
+      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Settings</h2>
+      <p class="text-xs text-slate-400 mb-3">User-editable overlay. Saved to <code id="settingsPath">./data/settings.yaml</code>.</p>
+      <textarea id="settingsEditor" class="w-full h-64 bg-slate-900 border border-slate-700/60 rounded-lg px-3 py-2 text-xs font-mono"
+                spellcheck="false"></textarea>
+      <div class="flex gap-2 mt-2">
+        <button onclick="loadSettings()" class="flex-1 py-2 rounded-lg bg-slate-700/60 text-slate-200 text-sm">Reload</button>
+        <button onclick="saveSettings()" class="flex-1 py-2 rounded-lg bg-indigo-500/80 text-white text-sm font-medium">Save</button>
+      </div>
+      <div id="settingsStatus" class="text-xs text-slate-500 mt-2"></div>
+    </div>
+  </div>
+
+</main>
+
+<nav class="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur border-t border-slate-800/50" style="padding-bottom: var(--safe-bottom)">
+  <div class="grid grid-cols-3 max-w-lg mx-auto">
+    <button class="nav-item active flex flex-col items-center py-2 gap-0.5" onclick="switchTab('home')">
+      <svg class="nav-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"/></svg>
+      <span class="nav-label text-[10px] text-slate-500">Home</span>
+    </button>
+    <button class="nav-item flex flex-col items-center py-2 gap-0.5" onclick="switchTab('chat')">
+      <svg class="nav-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+      <span class="nav-label text-[10px] text-slate-500">Chat</span>
+    </button>
+    <button class="nav-item flex flex-col items-center py-2 gap-0.5" onclick="switchTab('settings')">
+      <svg class="nav-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <span class="nav-label text-[10px] text-slate-500">Settings</span>
+    </button>
+  </div>
+</nav>
+
+<script>
+const API = '';
+function $(id){ return document.getElementById(id); }
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function switchTab(tab){
+  const tabs = ['home','chat','settings'];
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  $(`tab-${tab}`).classList.add('active');
+  document.querySelectorAll('.nav-item')[tabs.indexOf(tab)].classList.add('active');
+  const titles = {home: 'Dashboard', chat: 'AI Chat', settings: 'Settings'};
+  $('headerTitle').textContent = titles[tab] || 'homelab-ai';
+  if (tab === 'home') loadHome();
+  if (tab === 'settings') loadSettings();
+}
+
+async function loadHome(){
+  try {
+    const [overview, agent] = await Promise.all([
+      fetch(API+'/api/overview').then(r => r.json()),
+      fetch(API+'/api/agent/status').then(r => r.json()),
+    ]);
+    const entries = Object.entries(overview);
+    $('serviceGrid').innerHTML = entries.length
+      ? entries.map(([name, h]) => {
+          const ok = h.ok;
+          return `<div class="p-3 rounded-xl bg-slate-800/60 border border-slate-700/50">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full ${ok ? 'bg-emerald-400' : 'bg-red-400'}"></span>
+              <span class="text-sm font-medium">${esc(name)}</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1 truncate">${esc(h.version || h.error || 'ok')}</div>
+          </div>`;
+        }).join('')
+      : '<div class="col-span-2 text-xs text-slate-500 text-center py-4">No services configured. Edit config.yaml.</div>';
+    $('agentCard').innerHTML =
+      `Status: <span class="text-${agent.running ? 'emerald' : 'slate'}-300">${agent.running ? 'running' : 'idle'}</span> · `+
+      `${agent.open_failures || 0} open issue(s) · ` +
+      `interval ${agent.scan_interval}s`;
+    $('headerStatus').textContent = agent.running ? `agent ✓` : `agent ·`;
+  } catch (e) {
+    $('serviceGrid').innerHTML = `<div class="col-span-2 text-xs text-red-300">${esc(String(e))}</div>`;
+  }
+}
+
+async function sendChat(){
+  const input = $('chatInput');
+  const prompt = input.value.trim();
+  if (!prompt) return;
+  input.value = '';
+  const log = $('chatLog');
+  log.insertAdjacentHTML('beforeend',
+    `<div class="chat-msg flex justify-end"><div class="px-3 py-2 rounded-lg bg-indigo-500/30 text-sm max-w-[80%]">${esc(prompt)}</div></div>`);
+  const thinkingId = 'thinking-'+Date.now();
+  log.insertAdjacentHTML('beforeend',
+    `<div id="${thinkingId}" class="chat-msg flex justify-start"><div class="px-3 py-2 rounded-lg bg-slate-800/70 text-sm">…</div></div>`);
+  log.scrollTop = log.scrollHeight;
+  try {
+    const r = await fetch(API+'/api/ai/agent', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt}),
+    });
+    const d = await r.json();
+    $(thinkingId).remove();
+    log.insertAdjacentHTML('beforeend',
+      `<div class="chat-msg flex justify-start"><div class="px-3 py-2 rounded-lg bg-slate-800/70 text-sm max-w-[90%]">${esc(d.answer || JSON.stringify(d))}</div></div>`);
+  } catch (e) {
+    $(thinkingId).remove();
+    log.insertAdjacentHTML('beforeend',
+      `<div class="chat-msg flex justify-start"><div class="px-3 py-2 rounded-lg bg-red-500/20 text-red-300 text-sm">${esc(String(e))}</div></div>`);
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+async function loadSettings(){
+  try {
+    const r = await fetch(API+'/api/settings');
+    const d = await r.json();
+    $('settingsEditor').value = JSON.stringify(d, null, 2);
+    $('settingsStatus').textContent = 'Loaded.';
+  } catch (e) { $('settingsStatus').textContent = 'Error: '+e; }
+}
+
+async function saveSettings(){
+  let parsed;
+  try { parsed = JSON.parse($('settingsEditor').value); }
+  catch (e) { $('settingsStatus').textContent = 'Invalid JSON: '+e; return; }
+  try {
+    const r = await fetch(API+'/api/settings', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(parsed),
+    });
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    $('settingsStatus').textContent = 'Saved.';
+  } catch (e) { $('settingsStatus').textContent = 'Error: '+e; }
+}
+
+loadHome();
+setInterval(loadHome, 30000);
+</script>
+</body>
+</html>

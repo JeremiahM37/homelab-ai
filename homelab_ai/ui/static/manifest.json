@@ -1,0 +1,10 @@
+{
+  "name": "homelab-ai",
+  "short_name": "homelab-ai",
+  "description": "Self-hosted AI orchestrator for your homelab.",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#0f172a",
+  "icons": []
+}

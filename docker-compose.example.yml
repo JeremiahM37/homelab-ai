@@ -1,0 +1,46 @@
+# Example docker compose deployment for homelab-ai.
+# Copy to docker-compose.yml, edit, then: docker compose up -d
+#
+# All persistent state (config.yaml, agent.db, audit log, backups) lives
+# under ./data so you can bind-mount it onto host storage.
+
+services:
+  homelab-ai:
+    image: ghcr.io/JeremiahM37/homelab-ai:latest
+    # Or build locally:
+    # build: .
+    container_name: homelab-ai
+    restart: unless-stopped
+    ports:
+      - "9105:9105"
+    volumes:
+      - ./data:/data
+      # Optional: mount the host docker socket so the container_doctor
+      # module can monitor sibling containers. Comment out if you don't
+      # need container-level auto-restart.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # Secrets — keep them out of config.yaml, set them here or in a .env file.
+      # SONARR_API_KEY: ...
+      # RADARR_API_KEY: ...
+      # JELLYFIN_API_KEY: ...
+      # DISCORD_WEBHOOK: ...
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:9105/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# Bring your own Ollama. If you already have one, point ollama.url at it.
+# Otherwise uncomment below.
+#  ollama:
+#    image: ollama/ollama:latest
+#    container_name: ollama
+#    restart: unless-stopped
+#    ports:
+#      - "11434:11434"
+#    volumes:
+#      - ollama_data:/root/.ollama
+
+# volumes:
+#   ollama_data:

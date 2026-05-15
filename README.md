@@ -1,0 +1,257 @@
+# homelab-ai
+
+> Self-hosted AI orchestrator for your homelab — monitors your services, self-heals when they break, and exposes everything you run as MCP tools any LLM can drive.
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-yes-green.svg)](https://github.com/awesome-selfhosted/awesome-selfhosted)
+
+A FastAPI + Ollama-powered control plane that sits in front of your *arr stack, Jellyfin, qBittorrent, Paperless, Immich, Home Assistant — whatever you run — and gives you:
+
+- **Proactive monitoring** with a plugin-based agent loop and SQLite failure memory (no alert spam, no flapping fixes).
+- **3-tier auto-repair**: cheap rule checks → small LLM with safe tools → big LLM with file edits, full audit log, backups before every change.
+- **A single AI agent** (Ollama, OpenAI-compatible, anything that speaks tool-calling) that can drive every service through one HTTP surface.
+- **MCP server** so Claude Desktop, Open WebUI, Cursor, or any MCP client can plug into your homelab natively.
+- **Mobile PWA** with chat, dashboard, and per-service deep links — installable, works on LAN or over Tailscale.
+- **No vendor lock-in**: local-first, your data and credentials stay on your hardware.
+
+> **Status:** beta. The core architecture is stable and battle-tested in a production homelab; expect rough edges around new-service plugins and the PWA polish.
+
+---
+
+## Why this exists
+
+The selfhosted scene has great *individual* tools — Sonarr knows about TV, Immich knows about photos, Paperless knows about scans — but nothing that lets an LLM **drive all of them coherently**. You can ask ChatGPT for a recipe; you can't ask your homelab "is anything broken, and if so fix it" or "find me an audiobook by Brandon Sanderson and download it" without writing custom glue per service.
+
+homelab-ai is the glue: a config-driven plugin system where every service you run becomes both a monitored entity *and* a callable tool, with an AI agent that does the routing and an auto-repair loop that fixes the boring stuff while you sleep.
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/JeremiahM37/homelab-ai
+cd homelab-ai
+cp config.example.yaml config.yaml      # edit to your URLs/API keys
+docker compose up -d
+```
+
+Open `http://<your-host>:9105/app` for the mobile PWA, or `http://<your-host>:9105/docs` for the OpenAPI Swagger UI.
+
+Native Python (no Docker):
+
+```bash
+pip install -e .
+homelab-ai run --config config.yaml
+```
+
+---
+
+## What it looks like
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Mobile PWA   /  AI Chat   /  MCP Client (Claude/etc.)   │
+└─────────────────────┬───────────────────────────────────┘
+                      │ HTTP + tool calls
+┌─────────────────────▼───────────────────────────────────┐
+│        FastAPI core  (REST, MCP, WebUI, Settings)       │
+│        │              │                  │              │
+│        ▼              ▼                  ▼              │
+│   Tool router    Service plugins    Settings store      │
+│   (semantic)    (Sonarr, Radarr,   (YAML + secrets)    │
+│                  Jellyfin, ...)                         │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────┐
+│  Agent scan loop  ──►  Tier-1 rules  ──►  Tier-2 LLM    │
+│                                            │            │
+│  Failure memory (SQLite) ◄─────────────────┘            │
+│                                            │            │
+│                                            ▼            │
+│                                       Tier-3 smart      │
+│                                       fixer + audit     │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Features
+
+### Agent & auto-repair
+- Pluggable scan modules (container health, disk, services). Add a class, drop it in `agent/modules/`, done.
+- SQLite failure memory: same error doesn't fire the same fix twice in a row.
+- **Tier 1** — rule-based fixes (restart container, clear cache, retry indexer).
+- **Tier 2** — small LLM (≈4B params) with a limited tool catalog: enough to investigate logs and call repair tools, not enough to delete things.
+- **Tier 3** — smart fixer with a bigger model (≈30B). Can read/write files, but **every edit is backed up to `backups/` and logged in `audit_log.md`** for human review.
+- The agent **never** pushes to remote git, posts to social, or runs destructive commands without a config flag set by the operator.
+
+### AI surface
+- One agent endpoint (`/api/ai/agent`) that picks tools semantically and streams responses.
+- Built-in tools for the popular *arr stack, qBittorrent/Transmission/SABnzbd, Jellyfin/Plex, Immich, Paperless, Ollama.
+- Drop a Python file in `mcp/custom_tools/` to add your own.
+- Tool descriptions are embedded once at startup; the router picks the smallest relevant set per query (no 50-tool wall slowing every prompt).
+
+### Service plugins
+- Each service is one class with `health()`, `restart()`, and optional `tools()` methods.
+- The agent uses `health()` for monitoring; the AI uses `tools()` for actions.
+- Built-in plugins cover the common *arr stack — see [docs/adding-services.md](docs/adding-services.md) to wire in anything that has an HTTP API.
+
+### Mobile PWA
+- Installable, works on LAN or Tailscale.
+- Live dashboard, AI chat, per-service status, settings editor.
+- No login by default — put it behind your existing reverse proxy / SSO (Authelia, Caddy basic-auth, Cloudflare Access).
+
+### Verification
+- `python -m homelab_ai.verify` runs a flow-test suite against your live config.
+- Failures write a `fix-request.md` file the AI agent or you can pick up.
+- Use it as a nightly systemd timer or a pre-deploy gate.
+
+---
+
+## Configuration
+
+All configuration lives in **one** `config.yaml`. Environment variables override file values, so secrets can stay out of the file. See [config.example.yaml](config.example.yaml) for the annotated reference.
+
+Minimal example:
+
+```yaml
+ollama:
+  url: http://localhost:11434
+  small_model: qwen3.5:4b    # tool-calling / intent
+  smart_model: qwen3.6:35b   # repair / chat
+
+agent:
+  scan_interval: 300         # seconds
+  notify:
+    discord_webhook: ""      # optional
+
+services:
+  sonarr:
+    url: http://sonarr:8989
+    api_key: ${SONARR_API_KEY}
+  radarr:
+    url: http://radarr:7878
+    api_key: ${RADARR_API_KEY}
+  jellyfin:
+    url: http://jellyfin:8096
+    api_key: ${JELLYFIN_API_KEY}
+```
+
+Service entries map to plugins by name. Unknown names are loaded from `homelab_ai/services/` or the user `~/.config/homelab-ai/services/` directory.
+
+---
+
+## Adding your own service
+
+```python
+# ~/.config/homelab-ai/services/my_thing.py
+from homelab_ai.services.base import Service, ToolSpec
+
+class MyThing(Service):
+    name = "my_thing"
+
+    async def health(self) -> dict:
+        r = await self.http.get(f"{self.config['url']}/health")
+        return {"ok": r.status == 200}
+
+    def tools(self) -> list[ToolSpec]:
+        return [
+            ToolSpec(
+                name="my_thing_status",
+                description="Get current status of My Thing.",
+                handler=self._status,
+                params={},
+            ),
+        ]
+
+    async def _status(self) -> dict:
+        r = await self.http.get(f"{self.config['url']}/status")
+        return await r.json()
+```
+
+Add to `config.yaml`:
+
+```yaml
+services:
+  my_thing:
+    url: http://my-thing:8080
+```
+
+Restart. The agent will start monitoring it; the AI will gain a `my_thing_status` tool.
+
+Full guide: [docs/adding-services.md](docs/adding-services.md).
+
+---
+
+## Adding your own tool (no service)
+
+If you just want to expose a function to the AI without wiring up a whole service:
+
+```python
+# ~/.config/homelab-ai/tools/weather.py
+from homelab_ai.mcp.decorators import tool
+
+@tool(description="Get the current temperature for a city.")
+async def get_weather(city: str) -> dict:
+    ...
+```
+
+Full guide: [docs/adding-tools.md](docs/adding-tools.md).
+
+---
+
+## API overview
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET  /api/health` | Liveness probe |
+| `GET  /api/overview` | All-services snapshot for dashboards |
+| `GET  /api/services` | List of configured services and their health |
+| `POST /api/ai/agent` | One-shot agent call: prompt in, tool calls + answer out |
+| `POST /api/ai/agent/stream` | Same, server-sent-events streaming |
+| `GET  /api/agent/status` | Last scan, recent fixes, queued escalations |
+| `POST /api/agent/scan` | Trigger an immediate scan |
+| `GET  /api/settings` / `PUT /api/settings` | Read / update config (mirrored to disk) |
+| `GET  /mcp` | MCP server endpoint (for Claude Desktop, Open WebUI, etc.) |
+| `GET  /app` | Mobile PWA |
+| `GET  /docs` | OpenAPI Swagger UI |
+
+The full OpenAPI spec is at `/openapi.json`. The MCP tool catalog is at `/mcp/tools`.
+
+---
+
+## Comparison
+
+|                              | homelab-ai | Home Assistant + LLM Vision | n8n + Ollama | Open WebUI alone |
+|------------------------------|:----------:|:---------------------------:|:------------:|:----------------:|
+| Native *arr / media plugins  | ✅         | ❌                          | manual       | ❌               |
+| Auto-repair / self-healing   | ✅         | partial                     | manual       | ❌               |
+| MCP server (Claude/Cursor)   | ✅         | ❌                          | ❌           | partial          |
+| Mobile PWA out of the box    | ✅         | ✅                          | ❌           | ✅               |
+| Local-first / no cloud calls | ✅         | ✅                          | ✅           | ✅               |
+| Selfhosted-LLM-friendly      | ✅         | ✅                          | ✅           | ✅               |
+
+Pick the one whose primitives match what you do most. homelab-ai's primitive is **"a service that's monitored *and* AI-callable"**, which is the right shape for media/storage/scan workflows. Home Assistant's primitive is "a device with state and triggers", which is the right shape for IoT.
+
+---
+
+## Roadmap
+
+Tracked in [GitHub issues](https://github.com/JeremiahM37/homelab-ai/issues). Near-term focuses:
+
+- More built-in service plugins (Home Assistant, AdGuard, Nextcloud, NUT)
+- OpenAI-compatible LLM backend (not just Ollama)
+- Web installer / config wizard for first-time users
+- Optional remote-access tunnel templates (Tailscale, Cloudflare Tunnel)
+- HA-style automation triggers ("when X then call tool Y")
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). TL;DR: discuss large changes in an issue first; new services and tools should be plugins, not core patches; no personal IPs or secrets in code.
+
+## License
+
+[MIT](LICENSE).

@@ -1,0 +1,164 @@
+"""Agent scan loop.
+
+`run_forever(cfg)` is the long-lived entrypoint. `scan_once(cfg)` runs a
+single scan and returns — useful for cron / CLI / tests.
+"""
+from __future__ import annotations
+
+import asyncio
+import importlib
+import inspect
+import logging
+import time
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import aiohttp
+
+from .failure_memory import FailureMemory
+from .modules import AgentModule, Finding, Severity
+
+if TYPE_CHECKING:
+    from homelab_ai.config import Config
+    from homelab_ai.services.base import Service
+
+logger = logging.getLogger("homelab_ai.agent")
+
+
+def _load_modules(cfg: "Config", services: dict[str, "Service"]) -> list[AgentModule]:
+    out: list[AgentModule] = []
+    for name in cfg.agent.modules:
+        try:
+            module = importlib.import_module(f"homelab_ai.agent.modules.{name}")
+        except ImportError:
+            user_dir = Path.home() / ".config" / "homelab-ai" / "agent_modules"
+            path = user_dir / f"{name}.py"
+            if not path.is_file():
+                logger.warning("agent module %r not found", name)
+                continue
+            spec = importlib.util.spec_from_file_location(f"user_modules.{name}", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+        cls = None
+        for _n, obj in inspect.getmembers(module):
+            if inspect.isclass(obj) and issubclass(obj, AgentModule) and obj is not AgentModule:
+                if obj.__module__ == module.__name__:
+                    cls = obj
+                    break
+        if not cls:
+            logger.warning("no AgentModule subclass in %s", module.__name__)
+            continue
+        out.append(cls(cfg, services))
+    return out
+
+
+async def _do_scan(
+    modules: list[AgentModule],
+    memory: FailureMemory,
+    services: dict[str, "Service"],
+    http: "aiohttp.ClientSession",
+    cfg: "Config",
+) -> dict:
+    from homelab_ai.fixer import tier1_rules
+    from homelab_ai.fixer import tier2_small
+    from homelab_ai.fixer.tier3_smart import SmartFixer
+
+    started = time.time()
+    findings: list[Finding] = []
+    for m in modules:
+        try:
+            findings.extend(await m.scan())
+        except Exception as e:
+            logger.exception("module %s raised: %s", m.name, e)
+
+    fixed = 0
+    escalated = 0
+    for f in findings:
+        row = memory.record(f.module, f.target, f.message)
+        fp = row["fingerprint"]
+        if memory.should_skip(fp, cooldown_seconds=300):
+            continue
+        if f.severity < Severity.ERROR:
+            continue
+
+        # Tier 1
+        if cfg.agent.fixer.tier1_rules and f.fix_hint:
+            result = await tier1_rules.try_fix(f, services)
+            if result and result.get("ok"):
+                memory.mark_fix_attempt(fp, tier=1)
+                fixed += 1
+                continue
+
+        # Tier 2
+        if cfg.agent.fixer.tier2_small_llm:
+            decision = await tier2_small.attempt_fix(cfg, f, services, http)
+            memory.mark_fix_attempt(fp, tier=2)
+            if decision.get("action") in ("restart", "no_op") and (
+                decision.get("action") == "no_op"
+                or (decision.get("restart_result") or {}).get("ok")
+            ):
+                fixed += 1
+                continue
+
+        # Tier 3
+        if cfg.agent.fixer.tier3_smart_llm:
+            try:
+                fixer = SmartFixer(cfg, http)
+                result = await fixer.attempt_fix(f)
+                memory.mark_fix_attempt(fp, tier=3)
+                if result.get("ok"):
+                    fixed += 1
+                    continue
+            except Exception as e:
+                logger.exception("tier-3 raised: %s", e)
+
+        escalated += 1
+
+    elapsed = time.time() - started
+    summary = {
+        "duration_s": round(elapsed, 1),
+        "findings": len(findings),
+        "fixed": fixed,
+        "escalated": escalated,
+        "open_failures": len(memory.open_failures()),
+    }
+    logger.info("scan complete: %s", summary)
+    return summary
+
+
+async def scan_once(cfg: "Config") -> int:
+    """Run a single scan and exit."""
+    from homelab_ai.services import load_services
+
+    if not cfg.agent.enabled:
+        logger.info("agent disabled in config")
+        return 0
+
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as http:
+        services = load_services(cfg, http)
+        modules = _load_modules(cfg, services)
+        memory = FailureMemory(Path("./data") / "agent.db")
+        try:
+            await _do_scan(modules, memory, services, http, cfg)
+        finally:
+            memory.close()
+    return 0
+
+
+async def run_forever(cfg: "Config") -> None:
+    """Long-running scan loop."""
+    from homelab_ai.services import load_services
+
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as http:
+        services = load_services(cfg, http)
+        modules = _load_modules(cfg, services)
+        memory = FailureMemory(Path("./data") / "agent.db")
+        logger.info("agent started with %d modules, %d services, %ds interval",
+                    len(modules), len(services), cfg.agent.scan_interval)
+        try:
+            while True:
+                await _do_scan(modules, memory, services, http, cfg)
+                await asyncio.sleep(cfg.agent.scan_interval)
+        finally:
+            memory.close()

@@ -1,0 +1,98 @@
+# homelab-ai — example configuration.
+#
+# Copy to config.yaml and edit. Environment variables override file values
+# using the ${VAR} syntax below (e.g. ${SONARR_API_KEY}). Anything you don't
+# need can be left out; the loader will skip absent sections.
+
+# ── HTTP server ──────────────────────────────────────────────────────────────
+server:
+  host: 0.0.0.0
+  port: 9105
+  cors_origins: ["*"]
+
+# ── LLM backend ──────────────────────────────────────────────────────────────
+# Currently only Ollama is supported out of the box. OpenAI-compatible
+# backends are on the roadmap.
+ollama:
+  url: http://localhost:11434
+  # Small model — used for intent parsing and Tier-2 fixes. Should be fast
+  # and tool-calling-capable. Recommended: qwen3.5:4b, llama3.1:8b.
+  small_model: qwen3.5:4b
+  # Smart model — used for Tier-3 file-editing fixes and longer chats.
+  # Recommended: qwen3.6:35b-a3b, llama3.3:70b.
+  smart_model: qwen3.6:35b-a3b
+  # Idle keep-alive (Ollama unloads after this). "0" = unload immediately.
+  keep_alive: 2m
+
+# ── Agent / auto-repair ──────────────────────────────────────────────────────
+agent:
+  enabled: true
+  scan_interval: 300        # seconds between full scans
+  # Modules to run each scan. Comment out to disable; add your own by
+  # dropping a class in homelab_ai/agent/modules/ that inherits AgentModule.
+  modules:
+    - container_doctor
+    - disk_watcher
+    - service_health
+
+  # 3-tier repair:
+  fixer:
+    tier1_rules: true         # cheap rule-based fixes (always safe)
+    tier2_small_llm: true     # small LLM with safe tools (restart, retry, etc.)
+    tier3_smart_llm: true     # smart LLM with file-edit tools (backup + audit)
+    # Tier-3 will refuse to run unless every change can be backed up first.
+    backup_dir: ./data/backups
+    audit_log: ./data/audit_log.md
+    # Hard caps — even Tier-3 can't exceed these without operator action.
+    max_files_changed_per_fix: 5
+    max_lines_changed_per_fix: 200
+
+  # Notifications. All optional.
+  notify:
+    discord_webhook: ""       # full webhook URL
+    generic_webhook: ""       # POST {title, message, severity} to any URL
+    rate_limit_per_hour: 20   # don't spam during a crash loop
+
+# ── Services ─────────────────────────────────────────────────────────────────
+# Each key here loads a service plugin of the same name (built-in or from
+# ~/.config/homelab-ai/services/). The plugin reads its own settings from
+# this block.
+#
+# Built-in plugins: sonarr, radarr, lidarr, readarr, prowlarr, bazarr,
+# jellyfin, plex, jellyseerr, overseerr, qbittorrent, transmission, sabnzbd,
+# immich, paperless, mealie, audiobookshelf, kavita, nextcloud, ollama,
+# uptime_kuma.
+services:
+  sonarr:
+    url: http://sonarr:8989
+    api_key: ${SONARR_API_KEY}
+  radarr:
+    url: http://radarr:7878
+    api_key: ${RADARR_API_KEY}
+  jellyfin:
+    url: http://jellyfin:8096
+    api_key: ${JELLYFIN_API_KEY}
+  qbittorrent:
+    url: http://qbittorrent:8080
+    username: ${QBIT_USER}
+    password: ${QBIT_PASS}
+
+# ── MCP server ───────────────────────────────────────────────────────────────
+mcp:
+  enabled: true
+  # If a tool is gated, the AI must call /api/ai/agent — not raw MCP. Useful
+  # for tools that should require an audit trail.
+  gated_tools: []
+
+# ── Settings store ───────────────────────────────────────────────────────────
+# Where user edits made via the Settings UI get persisted. By default these
+# overlay config.yaml; you can point this at a writable directory.
+settings:
+  store_path: ./data/settings.yaml
+
+# ── Verification framework ───────────────────────────────────────────────────
+verify:
+  # Tests to run for `python -m homelab_ai.verify`. Built-in test groups:
+  # "core", "services", "ai". Custom tests go in tests/verify/.
+  groups: ["core", "services", "ai"]
+  fix_request_path: ./data/fix-request.md
