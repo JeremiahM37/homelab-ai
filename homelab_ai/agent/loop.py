@@ -56,12 +56,27 @@ def _load_modules(cfg: Config, services: dict[str, Service]) -> list[AgentModule
                 logger.warning("agent module %r not found", name)
                 continue
 
-        cls = None
+        # Prefer a class whose `.name` matches what was requested. This lets
+        # one file define multiple AgentModule subclasses without accidentally
+        # instantiating the wrong one — important if a user organizes their
+        # checks per-file as ([Backups, Disks, Networks] all in `monitor.py`).
+        candidates: list[type[AgentModule]] = []
         for _n, obj in inspect.getmembers(module):
             if inspect.isclass(obj) and issubclass(obj, AgentModule) and obj is not AgentModule:
-                cls = obj
-                if obj.__module__ == module.__name__:
-                    break  # prefer one defined here, but accept re-exports
+                candidates.append(obj)
+        cls = None
+        for c in candidates:
+            if getattr(c, "name", None) == name:
+                cls = c
+                break
+        if cls is None:
+            # Fall back: a class defined in this module (not a re-import) wins.
+            for c in candidates:
+                if c.__module__ == module.__name__:
+                    cls = c
+                    break
+            if cls is None and candidates:
+                cls = candidates[0]
         if not cls:
             logger.warning("no AgentModule subclass in %s", module.__name__)
             continue

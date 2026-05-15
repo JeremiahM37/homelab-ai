@@ -99,11 +99,18 @@ async def probe_one(http: aiohttp.ClientSession, host: str, sp: ServiceProbe,
                     timeout: float = 1.5) -> dict | None:
     """Try one host+probe. Returns a config-block dict if found, else None."""
     url = f"http://{host}:{sp.port}{sp.path}"
-    try:
+
+    async def _do_probe():
         async with http.get(url, timeout=aiohttp.ClientTimeout(total=timeout),
                             allow_redirects=False) as r:
-            body = (await r.text())[:8000]
-            headers = dict(r.headers or {})
+            return (await r.text())[:8000], dict(r.headers or {}), r.status
+    try:
+        # Belt-and-suspenders: enforce the timeout via wait_for too, so a
+        # session whose connector ignores aiohttp.ClientTimeout (rare but
+        # possible for non-default transports) still gets bounded.
+        body, headers, status = await asyncio.wait_for(_do_probe(), timeout=timeout + 0.5)
+    except TimeoutError:
+        return None
     except Exception:
         return None
 
@@ -114,10 +121,10 @@ async def probe_one(http: aiohttp.ClientSession, host: str, sp: ServiceProbe,
     elif sp.header_signature[0]:
         h, sub = sp.header_signature
         matched = sub.lower() in headers.get(h, "").lower()
-    elif not has_signature and r.status < 500:
+    elif not has_signature and status < 500:
         # No signature configured at all — accept any 2xx or 401 (the latter
         # being "service is up, just needs auth").
-        matched = r.status < 400 or r.status == 401
+        matched = status < 400 or status == 401
 
     if not matched:
         return None
