@@ -24,6 +24,9 @@ def main(argv: list[str] | None = None) -> int:
     p_init = sub.add_parser("init", help="Generate a config.yaml interactively")
     p_init.add_argument("--yes", action="store_true", help="Non-interactive (use defaults)")
     sub.add_parser("demo", help="Boot with fake services for a no-setup tour")
+    p_status = sub.add_parser("status", help="Probe /api/health and exit (for systemd / cron)")
+    p_status.add_argument("--url", default=None, help="Server URL (default: http://<server.host>:<server.port>)")
+    p_status.add_argument("--timeout", type=float, default=3.0)
     sub.add_parser("version", help="Print version")
 
     args = parser.parse_args(argv)
@@ -74,7 +77,44 @@ def main(argv: list[str] | None = None) -> int:
         from homelab_ai.demo import run_demo
         return run_demo()
 
+    if args.cmd == "status":
+        return _cmd_status(args)
+
     return 2
+
+
+def _cmd_status(args) -> int:
+    """Hit /api/health and print the result. Exits 0 if healthy, 1 otherwise.
+
+    Useful for systemd `ExecHealthCheck`, monit, cron, or just a quick
+    `homelab-ai status` from a shell.
+    """
+    import json
+    import urllib.error
+    import urllib.request
+
+    if args.url:
+        base = args.url.rstrip("/")
+    else:
+        from homelab_ai.config import load_config
+        cfg = load_config(args.config)
+        host = cfg.server.host if cfg.server.host not in ("0.0.0.0", "") else "127.0.0.1"
+        base = f"http://{host}:{cfg.server.port}"
+
+    try:
+        with urllib.request.urlopen(f"{base}/api/health", timeout=args.timeout) as r:
+            body = json.loads(r.read().decode())
+    except urllib.error.URLError as e:
+        print(f"DOWN {base}: {e.reason}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"DOWN {base}: {type(e).__name__}: {e}", file=sys.stderr)
+        return 1
+    if not body.get("ok"):
+        print(f"DEGRADED {base}: {body}", file=sys.stderr)
+        return 1
+    print(f"UP   {base}  v{body.get('version', '?')}")
+    return 0
 
 
 if __name__ == "__main__":

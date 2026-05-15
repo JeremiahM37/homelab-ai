@@ -32,36 +32,42 @@ homelab-ai is the glue: a config-driven plugin system where every service you ru
 
 ## Quick start
 
-**Try it with no setup:**
+**Recommended — Docker:**
+
+```bash
+# 1) Generate config.yaml interactively (detects Ollama, scans for services, makes an API key)
+docker run --rm -it --network host -v "$PWD/data:/data" \
+    ghcr.io/jeremiahm37/homelab-ai:latest --config /data/config.yaml init
+
+# 2) Run for real
+docker run -d --name homelab-ai \
+    -p 9105:9105 \
+    -v "$PWD/data:/data" \
+    -v /var/run/docker.sock:/var/run/docker.sock:ro \
+    ghcr.io/jeremiahm37/homelab-ai:latest
+```
+
+Open `http://<your-host>:9105/app`. The PWA asks for the API key on first load — paste it from `data/config.yaml`.
+
+Or use [docker-compose.example.yml](docker-compose.example.yml).
+
+**Try with zero setup — demo mode:**
+
+```bash
+docker run --rm -p 9105:9105 ghcr.io/jeremiahm37/homelab-ai:latest demo
+```
+
+Open `http://localhost:9105/app` — five mock services, working chat with tool-call cards, real history, no Ollama needed.
+
+**Python install (for development or running as a systemd service):**
 
 ```bash
 pip install homelab-ai
-homelab-ai demo
-```
-
-Open `http://localhost:9105/app` — a dashboard, AI chat, and a few mock services so you can try every feature without configuring anything.
-
-**Real install:**
-
-```bash
-pip install homelab-ai                       # or: docker pull ghcr.io/jeremiahm37/homelab-ai:latest
-homelab-ai --config config.yaml init         # detects Ollama, scans for services, writes config.yaml
+homelab-ai --config config.yaml init
 homelab-ai --config config.yaml run
 ```
 
-Open `http://<your-host>:9105/app` for the mobile PWA (paste the API key from `config.yaml` when prompted), or `http://<your-host>:9105/docs` for Swagger.
-
-**Docker:**
-
-```bash
-docker run -d --name homelab-ai \
-  -p 9105:9105 \
-  -v ./data:/data \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  ghcr.io/jeremiahm37/homelab-ai:latest run --config /data/config.yaml
-```
-
-Or use the [example compose](docker-compose.example.yml).
+The pip path is mainly for contributors and people running homelab-ai as a host-level systemd service. For day-to-day self-hosting, use Docker — dependency isolation, single-command upgrades, and the only thing you need to back up is `./data`.
 
 ### LLM backend — bring your own
 

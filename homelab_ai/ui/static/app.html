@@ -68,13 +68,14 @@
   <!-- AI Chat -->
   <div id="tab-chat" class="tab-panel flex flex-col" style="height: calc(100vh - 116px);">
     <div id="chatLog" class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-      <div class="text-xs text-slate-500 text-center py-2">Ask anything about your homelab.</div>
+      <div id="chatEmpty" class="text-xs text-slate-500 text-center py-2">Ask anything about your homelab.</div>
     </div>
     <div class="px-3 py-2 border-t border-slate-800/60 flex gap-2">
       <input id="chatInput" type="text" placeholder="What's broken right now?"
              class="flex-1 bg-slate-800/70 border border-slate-700/60 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500/60"
              onkeydown="if(event.key==='Enter') sendChat()">
       <button onclick="sendChat()" class="px-4 py-2 rounded-lg bg-indigo-500/80 text-white text-sm font-medium">Send</button>
+      <button onclick="clearChat()" class="px-3 py-2 rounded-lg bg-slate-700/60 text-slate-300 text-sm" title="Clear chat history">×</button>
     </div>
   </div>
 
@@ -237,13 +238,68 @@ async function loadHome(){
   }
 }
 
-// ── Chat: streaming SSE + tool-call cards ────────────────────────────────
+// ── Chat: streaming SSE + tool-call cards + localStorage persistence ─────
+const CHAT_HISTORY_KEY = 'homelab_ai_chat_history';
+const CHAT_MAX_TURNS = 50;   // turns kept in localStorage
+
+function loadChatHistory() {
+  try {
+    const turns = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
+    const log = $('chatLog');
+    if (!turns.length) return;
+    const empty = $('chatEmpty');
+    if (empty) empty.remove();
+    for (const t of turns) {
+      log.insertAdjacentHTML('beforeend', renderTurn(t));
+    }
+    log.scrollTop = log.scrollHeight;
+  } catch {}
+}
+
+function saveChatTurn(turn) {
+  try {
+    const turns = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
+    turns.push(turn);
+    // Keep size bounded so localStorage doesn't grow unbounded.
+    if (turns.length > CHAT_MAX_TURNS) turns.splice(0, turns.length - CHAT_MAX_TURNS);
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(turns));
+  } catch {}
+}
+
+function renderTurn(t) {
+  const userHtml = `<div class="chat-msg flex justify-end"><div class="px-3 py-2 rounded-lg bg-indigo-500/30 text-sm max-w-[80%]">${esc(t.prompt)}</div></div>`;
+  const toolCardsHtml = (t.tool_calls || []).map(tc => {
+    const argsText = tc.arguments ? JSON.stringify(tc.arguments) : '{}';
+    const resultText = tc.result ? JSON.stringify(tc.result, null, 2) : '';
+    return `<div class="tool-card">
+      <div><span class="tool-name">${esc(tc.name)}</span><span class="tool-args"> (${esc(argsText)})</span></div>
+      ${resultText ? `<div class="tool-result">${esc(resultText.slice(0, 800))}${resultText.length > 800 ? '…' : ''}</div>` : ''}
+    </div>`;
+  }).join('');
+  const answerHtml = `<div class="text-sm">${esc(t.answer || '(no answer)')}</div>`;
+  return `${userHtml}
+    <div class="chat-msg flex justify-start">
+      <div class="px-3 py-2 rounded-lg bg-slate-800/70 text-sm max-w-[90%]">
+        <div class="space-y-1">${toolCardsHtml}</div>
+        ${answerHtml}
+      </div>
+    </div>`;
+}
+
+function clearChat() {
+  if (!confirm('Clear chat history?')) return;
+  localStorage.removeItem(CHAT_HISTORY_KEY);
+  $('chatLog').innerHTML = '<div id="chatEmpty" class="text-xs text-slate-500 text-center py-2">Ask anything about your homelab.</div>';
+}
+
 async function sendChat(){
   const input = $('chatInput');
   const prompt = input.value.trim();
   if (!prompt) return;
   input.value = '';
   const log = $('chatLog');
+  const empty = $('chatEmpty');
+  if (empty) empty.remove();
   log.insertAdjacentHTML('beforeend',
     `<div class="chat-msg flex justify-end"><div class="px-3 py-2 rounded-lg bg-indigo-500/30 text-sm max-w-[80%]">${esc(prompt)}</div></div>`);
   // Container for the assistant's response — tool cards stream in, then the answer.
@@ -256,6 +312,9 @@ async function sendChat(){
        </div>
      </div>`);
   log.scrollTop = log.scrollHeight;
+
+  // Aggregated turn we'll persist when this exchange completes.
+  const turn = {prompt, tool_calls: [], answer: ''};
 
   // We use fetch + manual SSE parsing because EventSource doesn't support
   // POST + custom headers. The X-Api-Key wrapper above already adds auth.
@@ -277,17 +336,21 @@ async function sendChat(){
       while ((idx = buffer.indexOf('\n\n')) >= 0) {
         const event = buffer.slice(0, idx);
         buffer = buffer.slice(idx + 2);
-        handleSseEvent(event, respId);
+        handleSseEvent(event, respId, turn);
         log.scrollTop = log.scrollHeight;
       }
     }
+    // Persist completed exchange so refreshing the tab doesn't lose it.
+    saveChatTurn(turn);
   } catch (e) {
     $(`${respId}-answer`).innerHTML = `<span class="text-red-300">${esc(String(e))}</span>`;
+    turn.answer = `error: ${String(e)}`;
+    saveChatTurn(turn);
   }
   log.scrollTop = log.scrollHeight;
 }
 
-function handleSseEvent(raw, respId){
+function handleSseEvent(raw, respId, turn){
   let eventType = '', data = '';
   for (const line of raw.split('\n')) {
     if (line.startsWith('event:')) eventType = line.slice(6).trim();
@@ -306,9 +369,11 @@ function handleSseEvent(raw, respId){
       ${resultText ? `<div class="tool-result">${esc(resultText.slice(0, 800))}${resultText.length > 800 ? '…' : ''}</div>` : ''}
     `;
     $(`${respId}-tools`).appendChild(card);
+    if (turn) turn.tool_calls.push(payload);
   } else if (eventType === 'answer') {
     $(`${respId}-answer`).className = 'text-sm';
     $(`${respId}-answer`).textContent = payload.answer || '(no answer)';
+    if (turn) turn.answer = payload.answer || '';
   }
 }
 
@@ -508,6 +573,7 @@ async function saveSettings(){
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 loadHome();
+loadChatHistory();
 setInterval(loadHome, 30000);
 </script>
 </body>
