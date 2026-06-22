@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Mullvad VPN plugin** — `services.mullvad` exposes read-only tools (`mullvad_status`, `mullvad_devices`, `mullvad_check_routing`) using only the 16-digit account number; the routing check catches "tunnel up but no traffic" black-holes.
 - **RAG hybrid retrieval** — dense vectors + BM25 keyword search fused with Reciprocal Rank Fusion (`features.rag.hybrid`, on by default). BM25 needs `rank-bm25` (now in the `[rag]` extra); without it, retrieval degrades cleanly to dense-only.
 - **RAG optional LLM rerank** — `features.rag.rerank` reorders fused candidates with a small model (`features.rag.rerank_model`, falls back to `llm.model`).
 - **RAG incremental indexing** — a content-hash manifest skips unchanged sources and prunes stale chunks; re-ingesting identical content via `/api/rag/ingest` is now a no-op (`{"skipped": true}`).
