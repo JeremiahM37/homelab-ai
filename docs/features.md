@@ -24,7 +24,7 @@ The result: an install footprint that grows with what *you* turn on, not with wh
 | Inbound webhooks | `features.webhooks.enabled` | — | `/api/webhooks/{name}` |
 | Multi-LLM router | `features.multi_llm.enabled` | — | small + smart on different backends |
 | Run history | `features.history.enabled` | — | SQLite log + `/api/history/*` |
-| Document RAG | `features.rag.enabled` | `pip install homelab-ai[rag]` | `/api/rag/*` + vector store |
+| Document RAG | `features.rag.enabled` | `pip install homelab-ai[rag]` | `/api/rag/*` — hybrid (dense + BM25) search, optional LLM rerank, incremental indexing, visibility tiers |
 | MCP HTTP server | `features.mcp_http.enabled` | — | `/mcp` JSON-RPC endpoint |
 | Automation rules | `features.automations.enabled` | — | HA-style when-X-then-Y over Findings |
 | Anomaly detection | `features.anomalies.enabled` | — | hour-of-day z-score outlier flagging (also requires `anomaly_detector` in `agent.modules`) |

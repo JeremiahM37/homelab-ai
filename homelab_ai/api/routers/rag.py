@@ -17,24 +17,36 @@ def _store(request: Request):
 async def ingest(request: Request, body: dict = Body(...)):
     """Ingest a single document.
 
-    Body: {"source": "stable-id", "text": "...", "metadata": {...}}
+    Body: {"source": "stable-id", "text": "...", "metadata": {...},
+           "tier": "public|lan|admin"}
+
+    Re-ingesting identical content is a no-op (incremental); changed content
+    replaces the source's prior chunks.
     """
     source = body.get("source")
     text = body.get("text") or ""
     if not source or not text:
         raise HTTPException(400, "source + text required")
-    return await _store(request).ingest(source, text, body.get("metadata"))
+    return await _store(request).ingest(
+        source, text, body.get("metadata"), tier=body.get("tier"))
 
 
 @router.post("/search")
 async def search(request: Request, body: dict = Body(...)):
-    """{"query": "...", "k": 5, "source": "optional"} → list of chunks."""
+    """Hybrid (dense + BM25) search, tier-gated.
+
+    Body: {"query": "...", "k": 5, "source": "optional",
+           "max_tier": "admin", "surface": "optional"}
+    `surface` (e.g. "discord") caps visibility per configured surface_tiers;
+    otherwise `max_tier` caps it directly.
+    """
     query = body.get("query") or ""
     if not query:
         raise HTTPException(400, "query required")
     return {
         "results": await _store(request).search(
             query, k=body.get("k", 5), source=body.get("source"),
+            max_tier=body.get("max_tier", "admin"), surface=body.get("surface"),
         )
     }
 

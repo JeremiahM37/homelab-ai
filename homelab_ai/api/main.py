@@ -45,17 +45,30 @@ async def _lifespan(app: FastAPI):
         if features.rag.enabled:
             try:
                 from homelab_ai.llm import get_client
-                from homelab_ai.rag import RAGStore
+                from homelab_ai.rag import RAGStore, make_llm_reranker
                 client = get_client(cfg, app.state.http)
 
                 async def _embed(text: str):
                     return await client.embed(features.rag.embed_model, text)
+
+                reranker = None
+                if features.rag.rerank:
+                    rerank_model = (features.rag.rerank_model
+                                    or getattr(cfg.llm, "model", ""))
+                    reranker = make_llm_reranker(client, rerank_model)
                 app.state.rag = RAGStore(
                     features.rag.chroma_path, _embed,
                     chunk_size=features.rag.chunk_size,
                     chunk_overlap=features.rag.chunk_overlap,
+                    hybrid=features.rag.hybrid,
+                    candidate_k=features.rag.candidate_k,
+                    default_tier=features.rag.default_tier,
+                    reranker=reranker,
+                    surface_tiers=features.rag.surface_tiers,
                 )
-                logger.info("rag feature: on (%s)", features.rag.chroma_path)
+                logger.info("rag feature: on (%s) hybrid=%s rerank=%s",
+                            features.rag.chroma_path, features.rag.hybrid,
+                            features.rag.rerank)
             except ImportError as e:
                 logger.error("rag enabled but extra missing: %s", e)
         if features.scheduler.enabled:

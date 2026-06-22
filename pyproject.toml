@@ -34,7 +34,7 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["mcp>=1.0"]
 metrics = ["prometheus-client>=0.20"]
-rag = ["chromadb>=0.5"]
+rag = ["chromadb>=0.5", "rank-bm25>=0.2"]
 scheduler = ["croniter>=2.0"]
 auth = ["bcrypt>=4.0"]
 all = ["homelab-ai[mcp,metrics,rag,scheduler,auth]"]
@@ -47,6 +47,7 @@ dev = [
     "prometheus-client>=0.20",
     "croniter>=2.0",
     "bcrypt>=4.0",
+    "rank-bm25>=0.2",
 ]
 
 [project.scripts]

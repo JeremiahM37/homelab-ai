@@ -102,6 +102,15 @@ class RAGFeature:
     chunk_overlap: int = 100
     # Optional source plugins to index: ["paperless", "files", "url"]
     sources: list[str] = field(default_factory=list)
+    # Hybrid retrieval: dense + BM25 (rank_bm25) fused with RRF.
+    hybrid: bool = True
+    candidate_k: int = 24
+    # Optional LLM rerank pass over fused candidates.
+    rerank: bool = False
+    rerank_model: str = ""        # falls back to llm.model when empty
+    # Visibility tiers: default tier for ingests, and per-surface caps.
+    default_tier: str = "lan"
+    surface_tiers: dict = field(default_factory=dict)
 
 
 @dataclass

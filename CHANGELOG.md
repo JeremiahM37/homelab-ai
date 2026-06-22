@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **RAG hybrid retrieval** — dense vectors + BM25 keyword search fused with Reciprocal Rank Fusion (`features.rag.hybrid`, on by default). BM25 needs `rank-bm25` (now in the `[rag]` extra); without it, retrieval degrades cleanly to dense-only.
+- **RAG optional LLM rerank** — `features.rag.rerank` reorders fused candidates with a small model (`features.rag.rerank_model`, falls back to `llm.model`).
+- **RAG incremental indexing** — a content-hash manifest skips unchanged sources and prunes stale chunks; re-ingesting identical content via `/api/rag/ingest` is now a no-op (`{"skipped": true}`).
+- **RAG visibility tiers** — every document carries a `public`/`lan`/`admin` tier; `/api/rag/search` accepts `max_tier` or a `surface` (capped via `features.rag.surface_tiers`) so sensitive content never reaches a less-trusted surface.
+- **Structure-aware chunking** for RAG — splits on Markdown headings / paragraphs instead of fixed-width cuts.
+
+### Changed
+- `[rag]` extra now also installs `rank-bm25`.
+- `/api/rag/ingest` now prunes a source's prior chunks before writing new ones (fixes stale chunks lingering when a document shrinks).
+
 ## [0.6.0] - 2026-05-15
 
 ### Added
