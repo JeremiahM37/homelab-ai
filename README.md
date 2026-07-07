@@ -20,6 +20,13 @@ A FastAPI + Ollama-powered control plane that sits in front of your *arr stack, 
 
 > **Status:** beta. The core architecture is stable and battle-tested in a production homelab; expect rough edges around new-service plugins and the PWA polish.
 
+<p align="center">
+  <img src="docs/screenshot-home.png" alt="PWA home tab — per-service health cards (a failing qBittorrent flagged red), agent status, bottom navigation" width="45%">
+  &nbsp;
+  <img src="docs/screenshot-chat.png" alt="PWA chat tab — the agent answers a question by calling sonarr_queue and qbittorrent_transfer_info tools and showing their JSON results" width="45%">
+</p>
+<p align="center"><em>Both screenshots are <code>homelab-ai demo</code> — fake in-process services, no setup, try it yourself.</em></p>
+
 ---
 
 ## Why this exists
