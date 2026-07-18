@@ -187,7 +187,8 @@ class NUT(Service):
             data = await self.list_upses()
             ups_list = data.get("upses") or []
             return ups_list[0]["name"] if ups_list else None
-        except Exception:
+        except Exception as e:
+            logger.debug("NUT: could not determine first UPS: %s", e)
             return None
 
     def tools(self) -> list[ToolSpec]:

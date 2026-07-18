@@ -252,7 +252,9 @@ class GenericHTTP(Service):
             try:
                 import json as _json
                 parsed = _json.loads(text) if text else None
-            except Exception:
+            except Exception as e:
+                logger.debug("%s %s: non-JSON response (%s), returning raw text",
+                             method, url, e)
                 parsed = text
             return r.status, parsed
 
