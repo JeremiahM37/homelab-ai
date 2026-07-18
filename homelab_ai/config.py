@@ -31,7 +31,11 @@ def _expand_env(value: Any) -> Any:
 class ServerConfig:
     host: str = "0.0.0.0"
     port: int = 9105
-    cors_origins: list[str] = field(default_factory=lambda: ["*"])
+    # Cross-origin browser access. Empty (the default) means same-origin only —
+    # the bundled PWA is served from this origin, so it needs nothing here.
+    # Add explicit origins (e.g. "https://dash.example.com") to let another
+    # web app call the API from a browser; "*" opens it to every website.
+    cors_origins: list[str] = field(default_factory=list)
 
 
 @dataclass

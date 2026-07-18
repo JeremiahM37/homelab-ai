@@ -55,7 +55,7 @@ async def _run_discovery(hosts: list[str]) -> list[dict]:
 def _build_config(llm_url: str, llm_backend: str, api_key: str,
                   services: list[dict]) -> dict:
     cfg: dict = {
-        "server": {"host": "0.0.0.0", "port": 9105, "cors_origins": ["*"]},
+        "server": {"host": "0.0.0.0", "port": 9105, "cors_origins": []},
         "llm": {
             "backend": llm_backend,
             "url": llm_url,

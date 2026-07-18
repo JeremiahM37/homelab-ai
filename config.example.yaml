@@ -13,7 +13,11 @@ data_dir: ./data
 server:
   host: 0.0.0.0
   port: 9105
-  cors_origins: ["*"]
+  # Origins allowed to call the API from a browser. Empty = same-origin only,
+  # which is all the bundled PWA needs. List explicit origins to allow an
+  # external web dashboard, e.g. ["https://dash.example.com"]. Avoid "*":
+  # with auth disabled it lets any website you visit script your homelab API.
+  cors_origins: []
 
 # ── LLM backend ──────────────────────────────────────────────────────────────
 # Currently only Ollama is supported out of the box. OpenAI-compatible

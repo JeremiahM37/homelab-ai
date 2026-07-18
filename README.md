@@ -199,6 +199,8 @@ See [docs/features.md](docs/features.md) for the full menu.
 
 All configuration lives in **one** `config.yaml`. Environment variables override file values, so secrets can stay out of the file. See [config.example.yaml](config.example.yaml) for the annotated reference.
 
+**CORS**: `server.cors_origins` defaults to `[]` (same-origin only) — the bundled PWA is served from the API's own origin and needs nothing more. If a *separate* web app must call the API from a browser, list its origins explicitly, e.g. `cors_origins: ["https://dash.example.com"]`. Avoid `"*"`: combined with `auth.enabled: false` it lets any website you happen to visit read and drive your homelab API from your browser.
+
 Minimal example:
 
 ```yaml
