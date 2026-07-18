@@ -97,7 +97,7 @@ async def _do_scan(
     from homelab_ai.notifications import Notifier
 
     started = time.time()
-    notifier = Notifier(cfg.agent.notify, http, state_path=Path("./data/notifier.json"))
+    notifier = Notifier(cfg.agent.notify, http, state_path=cfg.data_path("notifier.json"))
 
     # Optional automation engine — off-by-default. When a Finding matches
     # a configured rule's trigger, the engine fires the rule's action
@@ -209,7 +209,7 @@ async def scan_once(cfg: Config) -> int:
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as http:
         services = load_services(cfg, http)
         modules = _load_modules(cfg, services)
-        memory = FailureMemory(Path("./data") / "agent.db")
+        memory = FailureMemory(cfg.data_path("agent.db"))
         try:
             await _do_scan(modules, memory, services, http, cfg)
         finally:
@@ -224,7 +224,7 @@ async def run_forever(cfg: Config) -> None:
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as http:
         services = load_services(cfg, http)
         modules = _load_modules(cfg, services)
-        memory = FailureMemory(Path("./data") / "agent.db")
+        memory = FailureMemory(cfg.data_path("agent.db"))
         logger.info("agent started with %d modules, %d services, %ds interval",
                     len(modules), len(services), cfg.agent.scan_interval)
         try:

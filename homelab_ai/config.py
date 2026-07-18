@@ -132,6 +132,9 @@ class VerifyConfig:
 
 @dataclass
 class Config:
+    # Directory for mutable state (agent.db, notifier.json, backups, ...).
+    # Relative paths resolve against the process working directory.
+    data_dir: str = "./data"
     server: ServerConfig = field(default_factory=ServerConfig)
     ollama: OllamaConfig = field(default_factory=OllamaConfig)  # legacy
     llm: LLMConfig = field(default_factory=LLMConfig)
@@ -146,7 +149,12 @@ class Config:
     _raw: dict = field(default_factory=dict)
 
     def service(self, name: str) -> dict | None:
+        """Return the raw config block for a named service, or None."""
         return self.services.get(name)
+
+    def data_path(self, *parts: str) -> Path:
+        """Resolve a state-file path under the configured data directory."""
+        return Path(self.data_dir).joinpath(*parts)
 
 
 def load_config(path: Path | str = "config.yaml") -> Config:
@@ -166,6 +174,8 @@ def load_config(path: Path | str = "config.yaml") -> Config:
     cfg = Config()
     cfg._raw = raw
 
+    if d := raw.get("data_dir"):
+        cfg.data_dir = str(d)
     if s := raw.get("server"):
         cfg.server = ServerConfig(**{k: v for k, v in s.items() if hasattr(ServerConfig, k)})
     if o := raw.get("ollama"):

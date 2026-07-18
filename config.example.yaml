@@ -4,6 +4,11 @@
 # using the ${VAR} syntax below (e.g. ${SONARR_API_KEY}). Anything you don't
 # need can be left out; the loader will skip absent sections.
 
+# ── State directory ──────────────────────────────────────────────────────────
+# Where mutable state lives (agent.db, notifier.json, settings, backups).
+# Relative paths resolve against the working directory of the process.
+data_dir: ./data
+
 # ── HTTP server ──────────────────────────────────────────────────────────────
 server:
   host: 0.0.0.0
