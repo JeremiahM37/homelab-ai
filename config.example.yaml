@@ -55,6 +55,8 @@ agent:
     # Hard caps — even Tier-3 can't exceed these without operator action.
     max_files_changed_per_fix: 5
     max_lines_changed_per_fix: 200
+    # Don't re-attempt a fix for the same failure within this window (seconds).
+    cooldown_seconds: 300
 
   # Notifications. All optional.
   notify:

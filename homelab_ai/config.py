@@ -99,6 +99,8 @@ class FixerConfig:
     audit_log: str = "./data/audit_log.md"
     max_files_changed_per_fix: int = 5
     max_lines_changed_per_fix: int = 200
+    # Don't re-attempt a fix for the same failure within this window.
+    cooldown_seconds: int = 300
 
 
 @dataclass

@@ -130,11 +130,14 @@ async def _do_scan(
         ))
 
     fixed = 0
+    acknowledged = 0
     escalated = 0
     for f in findings:
         outcome = await _process_finding(f, memory, services, http, cfg, notifier, automations)
         if outcome == "fixed":
             fixed += 1
+        elif outcome == "acknowledged":
+            acknowledged += 1
         elif outcome == "escalated":
             escalated += 1
 
@@ -143,6 +146,7 @@ async def _do_scan(
         "duration_s": round(elapsed, 1),
         "findings": len(findings),
         "fixed": fixed,
+        "acknowledged": acknowledged,
         "escalated": escalated,
         "open_failures": len(memory.open_failures()),
     }
@@ -161,14 +165,15 @@ async def _process_finding(
 ) -> str:
     """Run one finding through automations and the 3-tier fixer pipeline.
 
-    Returns the outcome: "cooldown", "info", "fixed", or "escalated".
+    Returns the outcome: "cooldown", "info", "fixed", "acknowledged",
+    or "escalated".
     """
     from homelab_ai.fixer import tier1_rules, tier2_small
     from homelab_ai.fixer.tier3_smart import SmartFixer
 
     row = memory.record(f.module, f.target, f.message)
     fp = row["fingerprint"]
-    if memory.should_skip(fp, cooldown_seconds=300):
+    if memory.should_skip(fp, cooldown_seconds=cfg.agent.fixer.cooldown_seconds):
         return "cooldown"
 
     # Automations run on every finding (including INFO/WARNING) — that's
@@ -195,12 +200,15 @@ async def _process_finding(
     # Tier 2
     if cfg.agent.fixer.tier2_small_llm:
         decision = await tier2_small.attempt_fix(cfg, f, services, http)
-        memory.mark_fix_attempt(fp, tier=2)
-        if decision.get("action") in ("restart", "no_op") and (
-            decision.get("action") == "no_op"
-            or (decision.get("restart_result") or {}).get("ok")
-        ):
-            return "fixed"
+        action = decision.get("action")
+        if action == "no_op":
+            # The LLM judged the failure already self-healed — nothing was
+            # done, so don't record a fix attempt or claim a fix.
+            return "acknowledged"
+        if action == "restart":
+            memory.mark_fix_attempt(fp, tier=2)
+            if (decision.get("restart_result") or {}).get("ok"):
+                return "fixed"
 
     # Tier 3
     if cfg.agent.fixer.tier3_smart_llm:
