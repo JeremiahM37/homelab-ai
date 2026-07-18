@@ -19,7 +19,9 @@ from .failure_memory import FailureMemory
 from .modules import AgentModule, Finding, Severity
 
 if TYPE_CHECKING:
+    from homelab_ai.automations import AutomationEngine
     from homelab_ai.config import Config
+    from homelab_ai.notifications import Notifier
     from homelab_ai.services.base import Service
 
 logger = logging.getLogger("homelab_ai.agent")
@@ -92,8 +94,6 @@ async def _do_scan(
     cfg: Config,
 ) -> dict:
     from homelab_ai.features import Features
-    from homelab_ai.fixer import tier1_rules, tier2_small
-    from homelab_ai.fixer.tier3_smart import SmartFixer
     from homelab_ai.notifications import Notifier
 
     started = time.time()
@@ -132,59 +132,11 @@ async def _do_scan(
     fixed = 0
     escalated = 0
     for f in findings:
-        row = memory.record(f.module, f.target, f.message)
-        fp = row["fingerprint"]
-        if memory.should_skip(fp, cooldown_seconds=300):
-            continue
-
-        # Automations run on every finding (including INFO/WARNING) — that's
-        # the use case ("when disk_forecast warns, run cleanup"). They are
-        # decoupled from the fixer pipeline.
-        if automations:
-            try:
-                fired = await automations.on_finding(f)
-                for action in fired:
-                    logger.info("automation %s → %s", action["rule"], action["result"])
-            except Exception as e:
-                logger.exception("automation engine raised: %s", e)
-
-        if f.severity < Severity.ERROR:
-            continue
-
-        # Tier 1
-        if cfg.agent.fixer.tier1_rules and f.fix_hint:
-            result = await tier1_rules.try_fix(f, services)
-            if result and result.get("ok"):
-                memory.mark_fix_attempt(fp, tier=1)
-                fixed += 1
-                continue
-
-        # Tier 2
-        if cfg.agent.fixer.tier2_small_llm:
-            decision = await tier2_small.attempt_fix(cfg, f, services, http)
-            memory.mark_fix_attempt(fp, tier=2)
-            if decision.get("action") in ("restart", "no_op") and (
-                decision.get("action") == "no_op"
-                or (decision.get("restart_result") or {}).get("ok")
-            ):
-                fixed += 1
-                continue
-
-        # Tier 3
-        if cfg.agent.fixer.tier3_smart_llm:
-            try:
-                fixer = SmartFixer(cfg, http)
-                result = await fixer.attempt_fix(f)
-                memory.mark_fix_attempt(fp, tier=3)
-                if result.get("ok"):
-                    fixed += 1
-                    continue
-            except Exception as e:
-                logger.exception("tier-3 raised: %s", e)
-
-        # Nothing fixed this — escalate and notify.
-        escalated += 1
-        await notifier.publish(f, action_taken="escalated to human")
+        outcome = await _process_finding(f, memory, services, http, cfg, notifier, automations)
+        if outcome == "fixed":
+            fixed += 1
+        elif outcome == "escalated":
+            escalated += 1
 
     elapsed = time.time() - started
     summary = {
@@ -196,6 +148,74 @@ async def _do_scan(
     }
     logger.info("scan complete: %s", summary)
     return summary
+
+
+async def _process_finding(
+    f: Finding,
+    memory: FailureMemory,
+    services: dict[str, Service],
+    http: aiohttp.ClientSession,
+    cfg: Config,
+    notifier: Notifier,
+    automations: AutomationEngine | None,
+) -> str:
+    """Run one finding through automations and the 3-tier fixer pipeline.
+
+    Returns the outcome: "cooldown", "info", "fixed", or "escalated".
+    """
+    from homelab_ai.fixer import tier1_rules, tier2_small
+    from homelab_ai.fixer.tier3_smart import SmartFixer
+
+    row = memory.record(f.module, f.target, f.message)
+    fp = row["fingerprint"]
+    if memory.should_skip(fp, cooldown_seconds=300):
+        return "cooldown"
+
+    # Automations run on every finding (including INFO/WARNING) — that's
+    # the use case ("when disk_forecast warns, run cleanup"). They are
+    # decoupled from the fixer pipeline.
+    if automations:
+        try:
+            fired = await automations.on_finding(f)
+            for action in fired:
+                logger.info("automation %s → %s", action["rule"], action["result"])
+        except Exception as e:
+            logger.exception("automation engine raised: %s", e)
+
+    if f.severity < Severity.ERROR:
+        return "info"
+
+    # Tier 1
+    if cfg.agent.fixer.tier1_rules and f.fix_hint:
+        result = await tier1_rules.try_fix(f, services)
+        if result and result.get("ok"):
+            memory.mark_fix_attempt(fp, tier=1)
+            return "fixed"
+
+    # Tier 2
+    if cfg.agent.fixer.tier2_small_llm:
+        decision = await tier2_small.attempt_fix(cfg, f, services, http)
+        memory.mark_fix_attempt(fp, tier=2)
+        if decision.get("action") in ("restart", "no_op") and (
+            decision.get("action") == "no_op"
+            or (decision.get("restart_result") or {}).get("ok")
+        ):
+            return "fixed"
+
+    # Tier 3
+    if cfg.agent.fixer.tier3_smart_llm:
+        try:
+            fixer = SmartFixer(cfg, http)
+            result = await fixer.attempt_fix(f)
+            memory.mark_fix_attempt(fp, tier=3)
+            if result.get("ok"):
+                return "fixed"
+        except Exception as e:
+            logger.exception("tier-3 raised: %s", e)
+
+    # Nothing fixed this — escalate and notify.
+    await notifier.publish(f, action_taken="escalated to human")
+    return "escalated"
 
 
 async def scan_once(cfg: Config) -> int:
