@@ -127,10 +127,12 @@ async def _warm_tool_router(app: FastAPI):
 
 
 def create_app(cfg: Config) -> FastAPI:
+    """Build the FastAPI app: middleware, routers, optional features, PWA."""
+    from homelab_ai import __version__
     app = FastAPI(
         title="homelab-ai",
         description="Self-hosted AI orchestrator for your homelab.",
-        version="0.1.0",
+        version=__version__,
         lifespan=_lifespan,
     )
     app.state.cfg = cfg
@@ -182,7 +184,7 @@ def create_app(cfg: Config) -> FastAPI:
 
     @app.get("/api/health")
     async def health():
-        return {"ok": True, "version": "0.1.0"}
+        return {"ok": True, "version": __version__}
 
     @app.get("/api/overview")
     async def overview():

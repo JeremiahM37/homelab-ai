@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "homelab-ai"
-version = "0.1.0"
+version = "0.6.0"
 description = "Self-hosted AI orchestrator for your homelab — monitors services, self-heals, exposes everything as MCP tools for any LLM to drive."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
-authors = [{ name = "homelab-ai contributors" }]
+authors = [{ name = "Jeremiah Mackey" }]
 keywords = ["homelab", "ai", "llm", "selfhosted", "mcp", "ollama", "monitoring", "automation"]
 classifiers = [
     "Development Status :: 4 - Beta",
