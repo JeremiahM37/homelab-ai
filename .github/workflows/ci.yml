@@ -41,9 +41,17 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
-      - name: Type-check (mypy, informational)
+      # Blocking for the packages that are currently mypy-clean:
+      # config, features, auth, agent, api. Widen as more packages are fixed.
+      - name: Type-check (mypy, blocking — core packages)
+        run: >
+          mypy --follow-imports=silent
+          homelab_ai/config.py homelab_ai/features.py
+          homelab_ai/auth homelab_ai/agent homelab_ai/api
+
+      - name: Type-check (mypy, informational — full tree)
         continue-on-error: true
-        run: mypy homelab_ai/ || true
+        run: mypy homelab_ai/
 
       - name: Tests
         run: pytest -v --tb=short

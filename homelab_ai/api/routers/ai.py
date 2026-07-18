@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import aiohttp
@@ -138,8 +138,7 @@ async def _select_tools(request: Request, query: str, all_tools: list[dict],
 async def _agent_loop(
     request: Request,
     prompt: str,
-    stream: bool = False,
-) -> dict | AsyncIterator[dict]:
+) -> dict[str, Any]:
     cfg = request.app.state.cfg
     all_tools = _collect_tools(request.app.state.services)
     selected = await _select_tools(request, prompt, all_tools)
@@ -244,7 +243,7 @@ async def agent_chat(request: Request, body: dict = Body(...)) -> dict[str, Any]
     prompt = (body.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(400, "prompt required")
-    return await _agent_loop(request, prompt, stream=False)
+    return await _agent_loop(request, prompt)
 
 
 @router.post("/agent/stream")
@@ -255,7 +254,7 @@ async def agent_chat_stream(request: Request, body: dict = Body(...)):
         raise HTTPException(400, "prompt required")
 
     async def gen():
-        result = await _agent_loop(request, prompt, stream=False)
+        result = await _agent_loop(request, prompt)
         for tc in result.get("tool_calls", []):
             yield f"event: tool_call\ndata: {json.dumps(tc, default=str)}\n\n"
             await asyncio.sleep(0)

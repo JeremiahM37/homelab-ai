@@ -153,6 +153,8 @@ class Config:
     # Original parsed dict — preserved so plugins can pick up keys we don't
     # know about at the dataclass level.
     _raw: dict = field(default_factory=dict)
+    # Parsed Features — attached by the API factory so lifespan can reuse it.
+    _features: Any = None
 
     def service(self, name: str) -> dict | None:
         """Return the raw config block for a named service, or None."""
@@ -190,7 +192,7 @@ def load_config(path: Path | str = "config.yaml") -> Config:
         cfg.llm = LLMConfig(**{k: v for k, v in llm.items() if hasattr(LLMConfig, k)})
     if auth := raw.get("auth"):
         users = auth.get("users") or {}
-        exempt = auth.get("exempt_paths") or AuthConfig.__dataclass_fields__["exempt_paths"].default_factory()
+        exempt = auth.get("exempt_paths") or AuthConfig().exempt_paths
         cfg.auth = AuthConfig(
             enabled=auth.get("enabled", False),
             api_key=auth.get("api_key", ""),

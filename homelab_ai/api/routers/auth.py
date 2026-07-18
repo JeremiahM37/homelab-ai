@@ -26,7 +26,7 @@ async def status(request: Request) -> dict:
 
 
 @router.post("/login")
-async def login(request: Request, body: dict = Body(...), response: Response = None) -> dict:
+async def login(request: Request, body: dict = Body(...)) -> Response:
     """Validate user/pass, issue a signed session cookie."""
     username = (body.get("username") or "").strip()
     password = body.get("password") or ""

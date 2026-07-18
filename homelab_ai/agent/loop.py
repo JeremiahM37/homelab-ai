@@ -49,6 +49,8 @@ def _load_modules(cfg: Config, services: dict[str, Service]) -> list[AgentModule
                 if path.is_file():
                     try:
                         spec = _ilu.spec_from_file_location(f"user_modules.{name}", path)
+                        if spec is None or spec.loader is None:
+                            raise ImportError(f"cannot build import spec for {path}")
                         module = _ilu.module_from_spec(spec)
                         spec.loader.exec_module(module)
                         break
@@ -182,8 +184,8 @@ async def _process_finding(
     if automations:
         try:
             fired = await automations.on_finding(f)
-            for action in fired:
-                logger.info("automation %s → %s", action["rule"], action["result"])
+            for fired_action in fired:
+                logger.info("automation %s → %s", fired_action["rule"], fired_action["result"])
         except Exception as e:
             logger.exception("automation engine raised: %s", e)
 

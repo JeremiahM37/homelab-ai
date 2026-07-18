@@ -201,7 +201,7 @@ def has_capability(name: str) -> bool:
         if name == "metrics":
             import prometheus_client  # noqa: F401
         elif name == "rag":
-            import chromadb  # noqa: F401
+            import chromadb  # type: ignore[import-not-found]  # noqa: F401
         elif name == "croniter":
             import croniter  # noqa: F401
         else:
