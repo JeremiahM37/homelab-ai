@@ -12,6 +12,7 @@ class ImportWatchdogModule(AgentModule):
     name = "import_watchdog"
 
     async def scan(self) -> list[Finding]:
+        """Flag *arr queue items stuck in warning/pending-import states."""
         findings: list[Finding] = []
         for name, svc in self.services.items():
             # Only relevant for *arr services that expose queue_summary.

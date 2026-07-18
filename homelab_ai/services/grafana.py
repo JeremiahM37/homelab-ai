@@ -4,7 +4,11 @@ Auth: Bearer token (service account or API key).
 """
 from __future__ import annotations
 
+import logging
+
 from .base import Service, ToolSpec
+
+logger = logging.getLogger("homelab_ai.services.grafana")
 
 
 class Grafana(Service):
@@ -46,7 +50,8 @@ class Grafana(Service):
                      "/api/alerts"):
             try:
                 r = await self._get(path, headers=self._headers)
-            except Exception:
+            except Exception as e:
+                logger.debug("alerts endpoint %s unavailable: %s", path, e)
                 continue
             if isinstance(r, list):
                 # Old shape: list of alert dicts with state.

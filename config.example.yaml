@@ -4,11 +4,20 @@
 # using the ${VAR} syntax below (e.g. ${SONARR_API_KEY}). Anything you don't
 # need can be left out; the loader will skip absent sections.
 
+# ── State directory ──────────────────────────────────────────────────────────
+# Where mutable state lives (agent.db, notifier.json, settings, backups).
+# Relative paths resolve against the working directory of the process.
+data_dir: ./data
+
 # ── HTTP server ──────────────────────────────────────────────────────────────
 server:
   host: 0.0.0.0
   port: 9105
-  cors_origins: ["*"]
+  # Origins allowed to call the API from a browser. Empty = same-origin only,
+  # which is all the bundled PWA needs. List explicit origins to allow an
+  # external web dashboard, e.g. ["https://dash.example.com"]. Avoid "*":
+  # with auth disabled it lets any website you visit script your homelab API.
+  cors_origins: []
 
 # ── LLM backend ──────────────────────────────────────────────────────────────
 # Currently only Ollama is supported out of the box. OpenAI-compatible
@@ -46,6 +55,8 @@ agent:
     # Hard caps — even Tier-3 can't exceed these without operator action.
     max_files_changed_per_fix: 5
     max_lines_changed_per_fix: 200
+    # Don't re-attempt a fix for the same failure within this window (seconds).
+    cooldown_seconds: 300
 
   # Notifications. All optional.
   notify:

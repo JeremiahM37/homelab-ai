@@ -53,10 +53,12 @@ async def search(request: Request, body: dict = Body(...)):
 
 @router.get("/stats")
 async def stats(request: Request):
+    """Chunk/source counts for the RAG store."""
     return _store(request).stats()
 
 
 @router.delete("/source/{source}")
 async def delete_source(source: str, request: Request):
+    """Remove all chunks belonging to a source."""
     _store(request).delete_source(source)
     return {"ok": True}

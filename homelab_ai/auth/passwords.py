@@ -27,6 +27,7 @@ PBKDF2_ITER = 600_000
 
 
 def hash_password(password: str) -> str:
+    """Hash a password with bcrypt when available, else PBKDF2-SHA256."""
     if _HAS_BCRYPT:
         return bcrypt.hashpw(password.encode(), bcrypt.gensalt(12)).decode()
     salt = secrets.token_bytes(16)
@@ -35,6 +36,7 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, stored: str) -> bool:
+    """Check a password against a stored bcrypt or PBKDF2 hash."""
     if not stored:
         return False
     if stored.startswith("$2"):

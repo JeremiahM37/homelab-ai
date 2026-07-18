@@ -67,6 +67,7 @@ class FailureMemory:
         ).fetchone())
 
     def mark_fix_attempt(self, fingerprint: str, tier: int) -> None:
+        """Record that a fix at `tier` was just attempted for this failure."""
         with self.conn:
             self.conn.execute(
                 "UPDATE failures SET last_tier = ?, last_fix_at = ? WHERE fingerprint = ?",
@@ -74,6 +75,7 @@ class FailureMemory:
             )
 
     def mark_resolved(self, fingerprint: str) -> None:
+        """Mark a failure as no longer occurring."""
         with self.conn:
             self.conn.execute(
                 "UPDATE failures SET resolved_at = ? WHERE fingerprint = ?",
@@ -90,10 +92,12 @@ class FailureMemory:
         return (time.time() - row["last_fix_at"]) < cooldown_seconds
 
     def open_failures(self) -> list[dict]:
+        """Unresolved failures, most recently seen first (capped at 200)."""
         rows = self.conn.execute(
             "SELECT * FROM failures WHERE resolved_at IS NULL ORDER BY last_seen DESC LIMIT 200"
         ).fetchall()
         return [dict(r) for r in rows]
 
     def close(self) -> None:
+        """Close the underlying SQLite connection."""
         self.conn.close()

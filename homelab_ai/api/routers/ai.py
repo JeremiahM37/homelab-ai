@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import aiohttp
@@ -65,6 +65,7 @@ def _collect_tools(services: dict) -> list[dict]:
 
 @router.get("/tools")
 async def list_tools(request: Request):
+    """Full tool catalog (name, description, schema) across all services."""
     tools = _collect_tools(request.app.state.services)
     # Strip handler before serializing.
     return {
@@ -77,6 +78,7 @@ async def list_tools(request: Request):
 
 @router.post("/embed")
 async def embed(request: Request, body: dict = Body(...)) -> dict:
+    """Embed text with the configured (or requested) embedding model."""
     text = body.get("text") or ""
     cfg = request.app.state.cfg
     model = body.get("model") or get_model(cfg, "embed")
@@ -91,6 +93,7 @@ async def embed(request: Request, body: dict = Body(...)) -> dict:
 
 
 async def _run_tool(tool: dict, arguments: dict) -> Any:
+    """Execute one tool call, mapping tool errors to an {'error': ...} result."""
     handler: Callable[..., Awaitable[Any]] = tool["handler"]
     try:
         return await handler(**(arguments or {}))
@@ -138,8 +141,8 @@ async def _select_tools(request: Request, query: str, all_tools: list[dict],
 async def _agent_loop(
     request: Request,
     prompt: str,
-    stream: bool = False,
-) -> dict | AsyncIterator[dict]:
+) -> dict[str, Any]:
+    """Tool-calling loop: select tools, let the LLM call them, return the final answer."""
     cfg = request.app.state.cfg
     all_tools = _collect_tools(request.app.state.services)
     selected = await _select_tools(request, prompt, all_tools)
@@ -244,7 +247,7 @@ async def agent_chat(request: Request, body: dict = Body(...)) -> dict[str, Any]
     prompt = (body.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(400, "prompt required")
-    return await _agent_loop(request, prompt, stream=False)
+    return await _agent_loop(request, prompt)
 
 
 @router.post("/agent/stream")
@@ -255,7 +258,7 @@ async def agent_chat_stream(request: Request, body: dict = Body(...)):
         raise HTTPException(400, "prompt required")
 
     async def gen():
-        result = await _agent_loop(request, prompt, stream=False)
+        result = await _agent_loop(request, prompt)
         for tc in result.get("tool_calls", []):
             yield f"event: tool_call\ndata: {json.dumps(tc, default=str)}\n\n"
             await asyncio.sleep(0)

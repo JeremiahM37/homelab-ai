@@ -21,6 +21,7 @@ def _store_path(request: Request) -> Path:
 
 @router.get("")
 async def get_settings(request: Request):
+    """Read the overlay settings store (empty object if absent)."""
     path = _store_path(request)
     if not path.is_file():
         return {}
@@ -29,6 +30,7 @@ async def get_settings(request: Request):
 
 @router.put("")
 async def put_settings(request: Request, body: dict = Body(...)):
+    """Replace the overlay settings store with the posted object."""
     if not isinstance(body, dict):
         raise HTTPException(400, "expected an object")
     path = _store_path(request)

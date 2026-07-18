@@ -83,6 +83,7 @@ class AnomalyDetectorModule(AgentModule):
         self._conn.commit()
 
     def _record(self, service: str, metric: str, value: float) -> None:
+        """Store one numeric metric sample with its hour-of-day."""
         now = time.time()
         hour = datetime.fromtimestamp(now).hour
         with self._conn:
@@ -97,6 +98,7 @@ class AnomalyDetectorModule(AgentModule):
             )
 
     def _baseline(self, service: str, metric: str, hour: int) -> tuple[float, float, int]:
+        """Mean/stddev of this metric at this hour-of-day over the retention window."""
         rows = self._conn.execute(
             "SELECT value FROM metric_history WHERE service = ? AND metric = ? AND hour = ?",
             (service, metric, hour),
@@ -110,6 +112,7 @@ class AnomalyDetectorModule(AgentModule):
         return mean, math.sqrt(var), n
 
     async def scan(self) -> list[Finding]:
+        """Record metrics from service health and flag hour-of-day z-score outliers."""
         if not self._enabled:
             return []
         findings: list[Finding] = []

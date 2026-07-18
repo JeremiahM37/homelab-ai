@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from fastapi import APIRouter, Request
 
@@ -13,8 +12,9 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 @router.get("/status")
 async def status(request: Request):
+    """Agent status: enabled flag, scan interval, and open failures."""
     cfg = request.app.state.cfg
-    db_path = Path("./data/agent.db")
+    db_path = cfg.data_path("agent.db")
     if not db_path.exists():
         return {"running": cfg.agent.enabled, "open_failures": 0, "scan_interval": cfg.agent.scan_interval}
     mem = FailureMemory(db_path)

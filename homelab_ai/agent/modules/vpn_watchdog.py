@@ -17,6 +17,7 @@ class VpnWatchdogModule(AgentModule):
     name = "vpn_watchdog"
 
     async def scan(self) -> list[Finding]:
+        """Probe the configured public-IP URL; CRITICAL finding if the VPN egress is dead."""
         cfg = (self.cfg._raw.get("agent") or {}).get("vpn_watchdog") or {}
         url = cfg.get("probe_url")
         if not url:

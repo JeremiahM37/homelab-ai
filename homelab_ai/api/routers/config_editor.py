@@ -145,6 +145,7 @@ _SECRET_KEYS = {"api_key", "password", "token", "smtp_password", "smart_api_key"
 
 
 def _redact_secrets(obj):
+    """Recursively mask secret-looking values before returning config to the UI."""
     if isinstance(obj, dict):
         out = {}
         for k, v in obj.items():

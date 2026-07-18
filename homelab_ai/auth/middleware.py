@@ -26,6 +26,7 @@ logger = logging.getLogger("homelab_ai.auth")
 
 
 def _is_exempt(path: str, exempt: list[str]) -> bool:
+    """True if the path matches an exempt entry (trailing '/' = prefix match)."""
     for e in exempt:
         if e.endswith("/"):
             if path.startswith(e):
@@ -42,6 +43,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.sessions = sessions
 
     async def dispatch(self, request: Request, call_next):
+        """Pass the request if auth is off, the path is exempt, or a key/session matches."""
         if not self.cfg.enabled:
             return await call_next(request)
 
@@ -73,6 +75,7 @@ def _safe_eq(a: str, b: str) -> bool:
 
 
 def _unauthorized(request: Request) -> Response:
+    """401 response — HTML for browser requests, JSON otherwise."""
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         return Response(

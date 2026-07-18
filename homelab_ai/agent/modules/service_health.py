@@ -8,6 +8,7 @@ class ServiceHealthModule(AgentModule):
     name = "service_health"
 
     async def scan(self) -> list[Finding]:
+        """Call health() on every configured service; ERROR finding for each that is down."""
         findings: list[Finding] = []
         for name, svc in self.services.items():
             try:

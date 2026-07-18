@@ -162,6 +162,7 @@ class Features:
 
     @classmethod
     def from_config(cls, cfg: "Config") -> "Features":
+        """Build a Features object from the raw `features:` block of the parsed config."""
         raw = cfg._raw.get("features") or {}
         f = cls()
         for attr in ("metrics", "email", "ntfy", "gotify", "scheduler",
@@ -181,6 +182,7 @@ class Features:
         return f
 
     def summary(self) -> dict:
+        """Map of feature name -> enabled flag, for cheap introspection."""
         return {
             attr: getattr(self, attr).enabled
             for attr in (
@@ -201,7 +203,7 @@ def has_capability(name: str) -> bool:
         if name == "metrics":
             import prometheus_client  # noqa: F401
         elif name == "rag":
-            import chromadb  # noqa: F401
+            import chromadb  # type: ignore[import-not-found]  # noqa: F401
         elif name == "croniter":
             import croniter  # noqa: F401
         else:

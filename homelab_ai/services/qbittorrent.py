@@ -65,7 +65,8 @@ class QBittorrent(Service):
             import json
             try:
                 ts = json.loads(ts["raw"])
-            except Exception:
+            except Exception as e:
+                logger.debug("torrents/info raw payload was not JSON: %s", e)
                 ts = []
         return {
             "count": len(ts) if isinstance(ts, list) else 0,

@@ -167,8 +167,8 @@ class Mullvad(Service):
             async with self.http.get(f"https://ipinfo.io/{public_ip}/org",
                                      timeout=aiohttp.ClientTimeout(total=5)) as r:
                 org = (await r.text()).strip()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("ipinfo.io org lookup for %s failed: %s", public_ip, e)
         looks_mullvad = any(s in org.lower() for s in ("mullvad", "m247", "31173",
                                                        "datapacket", "tefincom"))
         return {

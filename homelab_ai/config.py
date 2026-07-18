@@ -31,7 +31,11 @@ def _expand_env(value: Any) -> Any:
 class ServerConfig:
     host: str = "0.0.0.0"
     port: int = 9105
-    cors_origins: list[str] = field(default_factory=lambda: ["*"])
+    # Cross-origin browser access. Empty (the default) means same-origin only —
+    # the bundled PWA is served from this origin, so it needs nothing here.
+    # Add explicit origins (e.g. "https://dash.example.com") to let another
+    # web app call the API from a browser; "*" opens it to every website.
+    cors_origins: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -95,6 +99,8 @@ class FixerConfig:
     audit_log: str = "./data/audit_log.md"
     max_files_changed_per_fix: int = 5
     max_lines_changed_per_fix: int = 200
+    # Don't re-attempt a fix for the same failure within this window.
+    cooldown_seconds: int = 300
 
 
 @dataclass
@@ -132,6 +138,9 @@ class VerifyConfig:
 
 @dataclass
 class Config:
+    # Directory for mutable state (agent.db, notifier.json, backups, ...).
+    # Relative paths resolve against the process working directory.
+    data_dir: str = "./data"
     server: ServerConfig = field(default_factory=ServerConfig)
     ollama: OllamaConfig = field(default_factory=OllamaConfig)  # legacy
     llm: LLMConfig = field(default_factory=LLMConfig)
@@ -144,12 +153,20 @@ class Config:
     # Original parsed dict — preserved so plugins can pick up keys we don't
     # know about at the dataclass level.
     _raw: dict = field(default_factory=dict)
+    # Parsed Features — attached by the API factory so lifespan can reuse it.
+    _features: Any = None
 
     def service(self, name: str) -> dict | None:
+        """Return the raw config block for a named service, or None."""
         return self.services.get(name)
+
+    def data_path(self, *parts: str) -> Path:
+        """Resolve a state-file path under the configured data directory."""
+        return Path(self.data_dir).joinpath(*parts)
 
 
 def load_config(path: Path | str = "config.yaml") -> Config:
+    """Parse config.yaml (if present) into a Config, expanding ${ENV} references."""
     path = Path(path)
     if not path.is_file():
         # First-run fallback — return defaults so `homelab-ai run` works
@@ -166,6 +183,8 @@ def load_config(path: Path | str = "config.yaml") -> Config:
     cfg = Config()
     cfg._raw = raw
 
+    if d := raw.get("data_dir"):
+        cfg.data_dir = str(d)
     if s := raw.get("server"):
         cfg.server = ServerConfig(**{k: v for k, v in s.items() if hasattr(ServerConfig, k)})
     if o := raw.get("ollama"):
@@ -174,7 +193,7 @@ def load_config(path: Path | str = "config.yaml") -> Config:
         cfg.llm = LLMConfig(**{k: v for k, v in llm.items() if hasattr(LLMConfig, k)})
     if auth := raw.get("auth"):
         users = auth.get("users") or {}
-        exempt = auth.get("exempt_paths") or AuthConfig.__dataclass_fields__["exempt_paths"].default_factory()
+        exempt = auth.get("exempt_paths") or AuthConfig().exempt_paths
         cfg.auth = AuthConfig(
             enabled=auth.get("enabled", False),
             api_key=auth.get("api_key", ""),
