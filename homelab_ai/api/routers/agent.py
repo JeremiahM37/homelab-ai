@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 @router.get("/status")
 async def status(request: Request):
+    """Agent status: enabled flag, scan interval, and open failures."""
     cfg = request.app.state.cfg
     db_path = cfg.data_path("agent.db")
     if not db_path.exists():

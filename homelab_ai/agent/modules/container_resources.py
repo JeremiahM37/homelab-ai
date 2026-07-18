@@ -28,6 +28,7 @@ class ContainerResourcesModule(AgentModule):
         self._streak: dict[str, int] = defaultdict(int)
 
     async def _docker(self, path: str) -> list | dict | None:
+        """GET a path from the Docker Engine API (unix socket or TCP)."""
         cr_cfg = (self.cfg._raw.get("agent") or {}).get("container_resources") or {}
         host = cr_cfg.get("docker_host", "unix:///var/run/docker.sock")
         connector = aiohttp.UnixConnector(path=host.replace("unix://", "")) if host.startswith("unix://") else None
@@ -43,6 +44,7 @@ class ContainerResourcesModule(AgentModule):
             return None
 
     async def scan(self) -> list[Finding]:
+        """Flag containers whose CPU/memory stayed above threshold for consecutive scans."""
         cr_cfg = (self.cfg._raw.get("agent") or {}).get("container_resources") or {}
         cpu_threshold = cr_cfg.get("cpu_percent", self.DEFAULT_CPU_PCT)
         mem_threshold = cr_cfg.get("mem_gb", self.DEFAULT_MEM_GB)
@@ -83,6 +85,7 @@ class ContainerResourcesModule(AgentModule):
 
 
 def _calc_cpu_percent(stats: dict) -> float:
+    """Compute CPU percent from a Docker stats sample."""
     cpu = stats.get("cpu_stats", {}) or {}
     pre = stats.get("precpu_stats", {}) or {}
     cpu_delta = (cpu.get("cpu_usage", {}).get("total_usage", 0)

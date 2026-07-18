@@ -28,6 +28,7 @@ logger = logging.getLogger("homelab_ai.agent")
 
 
 def _user_agent_module_dirs() -> list[Path]:
+    """Directories searched for user-supplied agent module files."""
     import os
     dirs = [Path.home() / ".config" / "homelab-ai" / "agent_modules"]
     if extra := os.environ.get("HOMELAB_AI_AGENT_MODULES"):
@@ -36,6 +37,7 @@ def _user_agent_module_dirs() -> list[Path]:
 
 
 def _load_modules(cfg: Config, services: dict[str, Service]) -> list[AgentModule]:
+    """Import and instantiate the configured agent modules (built-in or user-supplied)."""
     import importlib.util as _ilu
 
     out: list[AgentModule] = []
@@ -95,6 +97,7 @@ async def _do_scan(
     http: aiohttp.ClientSession,
     cfg: Config,
 ) -> dict:
+    """Run every module once, resolve cleared failures, and fix/escalate new findings."""
     from homelab_ai.features import Features
     from homelab_ai.notifications import Notifier
 

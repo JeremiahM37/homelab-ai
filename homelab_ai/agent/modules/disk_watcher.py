@@ -15,6 +15,7 @@ class DiskWatcherModule(AgentModule):
     CRIT_PERCENT = 95
 
     async def scan(self) -> list[Finding]:
+        """Flag watched paths whose disk usage exceeds the warn/critical thresholds."""
         agent_cfg = (self.cfg._raw.get("agent") or {}).get("disk_watcher") or {}
         paths = agent_cfg.get("paths") or self.DEFAULT_PATHS
         warn = agent_cfg.get("warn_percent", self.WARN_PERCENT)

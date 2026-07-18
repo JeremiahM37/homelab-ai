@@ -27,6 +27,7 @@ class SessionStore:
         self.secret = secret.encode()
 
     def issue(self, username: str, ttl: int = SESSION_TTL) -> str:
+        """Mint a signed session token for `username`, valid for `ttl` seconds."""
         exp = int(time.time()) + ttl
         payload = f"{username}.{exp}".encode()
         sig = hmac.new(self.secret, payload, hashlib.sha256).hexdigest()

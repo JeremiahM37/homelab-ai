@@ -18,6 +18,7 @@ class ContainerDoctorModule(AgentModule):
     name = "container_doctor"
 
     async def _docker_get(self, path: str) -> list | dict | None:
+        """GET a path from the Docker Engine API (unix socket or TCP)."""
         cfg = (self.cfg._raw.get("agent") or {}).get("container_doctor") or {}
         host = cfg.get("docker_host", "unix:///var/run/docker.sock")
         connector = aiohttp.UnixConnector(path=host.replace("unix://", "")) if host.startswith("unix://") else None
@@ -33,6 +34,7 @@ class ContainerDoctorModule(AgentModule):
             return None
 
     async def scan(self) -> list[Finding]:
+        """Flag exited/unhealthy Docker containers, with a restart fix hint."""
         containers = await self._docker_get("/v1.41/containers/json?all=1")
         if not containers:
             return []  # no docker, no findings

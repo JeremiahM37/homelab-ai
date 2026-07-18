@@ -18,6 +18,7 @@ router = APIRouter(tags=["mcp"])
 
 
 def _gather_tools(services: dict) -> tuple[list[dict], dict]:
+    """Collect every service tool as MCP tool descriptors plus a handler map."""
     tools = []
     handlers: dict[str, Any] = {}
     for svc_name, svc in services.items():

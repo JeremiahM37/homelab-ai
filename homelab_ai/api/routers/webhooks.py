@@ -32,6 +32,7 @@ router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
 
 
 def _check_secret(request: Request, expected: str) -> bool:
+    """Constant-time check of the receiver's shared secret (empty = open)."""
     if not expected:
         return True   # no secret configured = open
     provided = (
@@ -61,6 +62,7 @@ def _render_args(template: dict, body: dict) -> dict:
 
 @router.post("/{name}")
 async def receive(name: str, request: Request, body: dict = Body(default={})) -> dict:
+    """Validate the secret and fire the tool configured for webhook `name`."""
     features = request.app.state.cfg._features  # set on startup if webhooks enabled
     receiver = (features.webhooks.receivers or {}).get(name)
     if not receiver:

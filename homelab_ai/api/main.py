@@ -22,6 +22,7 @@ logger = logging.getLogger("homelab_ai.api")
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    """App startup/shutdown: HTTP session, services, optional features, agent task."""
     cfg: Config = app.state.cfg
     app.state.http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
     app.state.services = load_services(cfg, app.state.http)
@@ -184,10 +185,12 @@ def create_app(cfg: Config) -> FastAPI:
 
     @app.get("/api/health")
     async def health():
+        """Liveness probe with the running version."""
         return {"ok": True, "version": __version__}
 
     @app.get("/api/overview")
     async def overview():
+        """Health snapshot of every configured service."""
         out = {}
         for name, svc in app.state.services.items():
             try:
@@ -217,6 +220,7 @@ def create_app(cfg: Config) -> FastAPI:
 
 
 def serve(cfg: Config) -> int:
+    """Run the API app under uvicorn (blocking)."""
     app = create_app(cfg)
     uvicorn.run(app, host=cfg.server.host, port=cfg.server.port, log_level="info")
     return 0

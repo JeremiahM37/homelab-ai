@@ -166,6 +166,7 @@ class Config:
 
 
 def load_config(path: Path | str = "config.yaml") -> Config:
+    """Parse config.yaml (if present) into a Config, expanding ${ENV} references."""
     path = Path(path)
     if not path.is_file():
         # First-run fallback — return defaults so `homelab-ai run` works

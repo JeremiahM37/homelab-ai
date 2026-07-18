@@ -56,6 +56,7 @@ async def login(request: Request, body: dict = Body(...)) -> Response:
 
 @router.post("/logout")
 async def logout() -> Response:
+    """Clear the session cookie."""
     response = Response('{"ok":true}', media_type="application/json")
     response.delete_cookie(COOKIE_NAME, path="/")
     return response

@@ -8,6 +8,7 @@ router = APIRouter(prefix="/api/services", tags=["services"])
 
 @router.get("")
 async def list_services(request: Request):
+    """Names of all configured services."""
     services = request.app.state.services
     return {
         "count": len(services),
@@ -17,6 +18,7 @@ async def list_services(request: Request):
 
 @router.get("/{name}/health")
 async def service_health(name: str, request: Request):
+    """Health of a single service."""
     svc = request.app.state.services.get(name)
     if not svc:
         raise HTTPException(404, f"service {name!r} not configured")
@@ -25,6 +27,7 @@ async def service_health(name: str, request: Request):
 
 @router.post("/{name}/restart")
 async def service_restart(name: str, request: Request):
+    """Restart a single service via its plugin."""
     svc = request.app.state.services.get(name)
     if not svc:
         raise HTTPException(404, f"service {name!r} not configured")

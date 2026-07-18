@@ -44,6 +44,7 @@ class DiskForecastModule(AgentModule):
         self._conn.commit()
 
     def _record(self, path: str, used: int, total: int) -> None:
+        """Append a (timestamp, used-bytes) sample for this path."""
         now = time.time()
         with self._conn:
             self._conn.execute(
@@ -57,12 +58,14 @@ class DiskForecastModule(AgentModule):
             )
 
     def _history(self, path: str) -> list[tuple[float, int]]:
+        """All recorded (timestamp, used-bytes) samples for a path, oldest first."""
         rows = self._conn.execute(
             "SELECT ts, used_bytes FROM disk_history WHERE path = ? ORDER BY ts ASC", (path,)
         ).fetchall()
         return [(r[0], r[1]) for r in rows]
 
     def _days_to_full(self, path: str, total: int) -> float | None:
+        """Linear-regression projection of days until the path reaches capacity."""
         hist = self._history(path)
         # Need enough samples spanning at least a few hours.
         if len(hist) < 5 or hist[-1][0] - hist[0][0] < 6 * 3600:
@@ -83,6 +86,7 @@ class DiskForecastModule(AgentModule):
         return max(0.0, days)
 
     async def scan(self) -> list[Finding]:
+        """Record current disk usage and warn when the projected days-to-full is low."""
         agent_cfg = (self.cfg._raw.get("agent") or {}).get("disk_forecast") or {}
         paths = agent_cfg.get("paths") or self.DEFAULT_PATHS
         warn_days = agent_cfg.get("warn_days", self.WARN_DAYS)

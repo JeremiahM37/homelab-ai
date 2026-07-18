@@ -65,6 +65,7 @@ def _collect_tools(services: dict) -> list[dict]:
 
 @router.get("/tools")
 async def list_tools(request: Request):
+    """Full tool catalog (name, description, schema) across all services."""
     tools = _collect_tools(request.app.state.services)
     # Strip handler before serializing.
     return {
@@ -77,6 +78,7 @@ async def list_tools(request: Request):
 
 @router.post("/embed")
 async def embed(request: Request, body: dict = Body(...)) -> dict:
+    """Embed text with the configured (or requested) embedding model."""
     text = body.get("text") or ""
     cfg = request.app.state.cfg
     model = body.get("model") or get_model(cfg, "embed")
@@ -91,6 +93,7 @@ async def embed(request: Request, body: dict = Body(...)) -> dict:
 
 
 async def _run_tool(tool: dict, arguments: dict) -> Any:
+    """Execute one tool call, mapping tool errors to an {'error': ...} result."""
     handler: Callable[..., Awaitable[Any]] = tool["handler"]
     try:
         return await handler(**(arguments or {}))
@@ -139,6 +142,7 @@ async def _agent_loop(
     request: Request,
     prompt: str,
 ) -> dict[str, Any]:
+    """Tool-calling loop: select tools, let the LLM call them, return the final answer."""
     cfg = request.app.state.cfg
     all_tools = _collect_tools(request.app.state.services)
     selected = await _select_tools(request, prompt, all_tools)
