@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`data_dir` setting** — agent state files (agent.db, notifier.json) now resolve through a single configurable directory (default `./data`, unchanged).
+- **`agent.fixer.cooldown_seconds`** — the fix-retry cooldown (previously hardcoded to 300) is configurable.
+- Scan summaries report an **`acknowledged`** count for Tier-2 `no_op` decisions ("already self-healed"), which are no longer counted as `fixed`.
 - **Mullvad VPN plugin** — `services.mullvad` exposes read-only tools (`mullvad_status`, `mullvad_devices`, `mullvad_check_routing`) using only the 16-digit account number; the routing check catches "tunnel up but no traffic" black-holes.
 - **RAG hybrid retrieval** — dense vectors + BM25 keyword search fused with Reciprocal Rank Fusion (`features.rag.hybrid`, on by default). BM25 needs `rank-bm25` (now in the `[rag]` extra); without it, retrieval degrades cleanly to dense-only.
 - **RAG optional LLM rerank** — `features.rag.rerank` reorders fused candidates with a small model (`features.rag.rerank_model`, falls back to `llm.model`).
@@ -16,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Structure-aware chunking** for RAG — splits on Markdown headings / paragraphs instead of fixed-width cuts.
 
 ### Changed
+- **Breaking**: `server.cors_origins` now defaults to `[]` (same-origin only) instead of `"*"`. The bundled PWA is unaffected; deployments serving a separate browser frontend must list its origin explicitly.
 - `[rag]` extra now also installs `rank-bm25`.
 - `/api/rag/ingest` now prunes a source's prior chunks before writing new ones (fixes stale chunks lingering when a document shrinks).
 
